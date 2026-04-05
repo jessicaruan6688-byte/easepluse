@@ -1,10 +1,18 @@
 import { ChangeEvent, type CSSProperties, useEffect, useRef, useState } from "react";
 import {
+  beaconRooms,
+  buildBeaconGuardrail,
+  buildCareHeadline,
   buildInsight,
+  careContacts,
   defaultCustomSnapshot,
   evaluateSnapshot,
+  growthLoopSteps,
   scenarios,
+  sharingTierLabels,
   symptomLabels,
+  type BeaconRoom,
+  type CareContact,
   type Scenario,
   type Snapshot,
   type SymptomKey,
@@ -16,6 +24,8 @@ type ViewKey =
   | "connect"
   | "dashboard"
   | "support"
+  | "care"
+  | "beacon"
   | "trends"
   | "safety";
 
@@ -46,6 +56,8 @@ const navItems: Array<{ key: ViewKey; label: string }> = [
   { key: "connect", label: "数据桥接" },
   { key: "dashboard", label: "今日状态" },
   { key: "support", label: "恢复支持" },
+  { key: "care", label: "关怀圈" },
+  { key: "beacon", label: "匿名支持" },
   { key: "trends", label: "趋势复盘" },
   { key: "safety", label: "安全边界" },
 ];
@@ -73,16 +85,16 @@ const quickLinks: QuickLink[] = [
     href: "https://github.com/jessicaruan6688-byte/easepluse",
   },
   {
-    badge: "官方说明",
+    badge: "共享参考",
+    label: "查看 Apple Health Sharing",
+    note: "亲友共享必须走明确授权和联系人机制，这对关怀圈设计有直接参考价值。",
+    href: "https://support.apple.com/en-us/108323",
+  },
+  {
+    badge: "设备说明",
     label: "查看华为手环配对说明",
     note: "官方链路仍然是先接入 Huawei Health，再做后续数据桥接。",
     href: "https://consumer.huawei.com/en/support/content/en-us15935171/",
-  },
-  {
-    badge: "浏览器能力",
-    label: "查看 Chrome Web Bluetooth",
-    note: "桌面网页可尝试连接心率广播，但前提是设备真的开放标准 BLE 服务。",
-    href: "https://developer.chrome.com/docs/capabilities/bluetooth",
   },
 ];
 
@@ -95,10 +107,17 @@ const referenceLinks: ReferenceLink[] = [
     href: "https://www.whoop.com/us/en/",
   },
   {
+    tag: "Trust Sharing",
+    name: "Apple Health Sharing",
+    vibe: "把健康共享限制在可信联系人里，强调邀请、同意和随时撤回。",
+    takeaway: "很适合我们设计关怀圈的授权边界和社交安全感。",
+    href: "https://support.apple.com/en-us/108323",
+  },
+  {
     tag: "Gentle Wellness",
     name: "Gentler Streak",
     vibe: "语气温和，强调恢复和节奏，不会一味要求用户更努力。",
-    takeaway: "很适合我们参考“放松、轻盈、可信”的产品氛围。",
+    takeaway: "适合我们参考“放松、轻盈、可信”的产品氛围。",
     href: "https://gentler.app/",
   },
   {
@@ -108,27 +127,20 @@ const referenceLinks: ReferenceLink[] = [
     takeaway: "适合参考首页的引导方式和文案语气。",
     href: "https://www.headspace.com/",
   },
-  {
-    tag: "Rest Content",
-    name: "Calm",
-    vibe: "内容块清楚，睡眠和放松内容都能在第一屏快速建立信任。",
-    takeaway: "适合参考情绪支持模块和更柔和的色彩氛围。",
-    href: "https://www.calm.com/",
-  },
 ];
 
 const designNotes = [
   {
-    title: "更轻的蒂凡尼蓝",
-    body: "主色从深青绿改成浅海盐蓝和玻璃感白，整体更松弛，页面不会显得闷。",
+    title: "先做软件，不做危险硬件叙事",
+    body: "保留手环和健康数据，但不把项目讲成“防猝死硬件”，而是高压工作者的恢复力系统。",
   },
   {
-    title: "把“比赛 Demo”降到二级",
-    body: "右上角不再用两颗大徽标抢注意力，只保留更克制的状态信息。",
+    title: "把增长嵌进产品结构",
+    body: "从单人恢复，到关怀圈邀请，再到匿名支持房间，增长不靠生硬拉新，而靠支持关系扩散。",
   },
   {
-    title: "把可点击入口做实",
-    body: "首页现在有真实线上站点、GitHub、官方配对说明和竞品参考外链，不再只是卡片摆设。",
+    title: "陌生人只承接主动求助",
+    body: "匿名世界不广播危险状态，不公开原始健康数据，高风险场景仍然只走亲友和安全升级链路。",
   },
 ];
 
@@ -142,16 +154,16 @@ const demoSleepHours = 5.3;
 
 const judgeHighlights = [
   {
-    title: "Sleep Debt",
-    body: "低睡眠被保留成稳定基线，让风险上升看起来更可信，不像无来由地跳红。",
+    title: "Recovery First",
+    body: "先讲恢复不足，再讲情绪支持，让评委理解产品不是普通陪聊。",
   },
   {
-    title: "Stress Playback",
-    body: "点击后，心率、风险分和情绪球同步推进，评委能在几秒内看懂剧情。",
+    title: "Care Circle Handoff",
+    body: "当状态持续变差，页面会自然把用户推向可信联系人，而不是留在虚拟安慰里。",
   },
   {
-    title: "Gentle Support",
-    body: "超过阈值后不是警报轰炸，而是温柔但明确地给出一个恢复动作。",
+    title: "Beacon Guardrail",
+    body: "匿名世界只接主动求助，不公开危险状态，增长和安全边界一起成立。",
   },
 ];
 
@@ -161,6 +173,44 @@ const demoTimelineCheckpoints = [
   { label: "09:42", heartRate: 98, risk: 63 },
   { label: "10:06", heartRate: 111, risk: 78 },
   { label: "10:18", heartRate: 118, risk: 88 },
+];
+
+const sharingNotes = [
+  {
+    title: "状态等级",
+    detail: "适合家人，只看你今天平稳、恢复不足还是建议关注。",
+  },
+  {
+    title: "趋势与留言",
+    detail: "适合伴侣和工作搭子，既能看到趋势，也能留一句真正有帮助的话。",
+  },
+  {
+    title: "安全升级提醒",
+    detail: "只给最可信的人，高风险场景优先电话和线下确认，而不是继续聊天。",
+  },
+];
+
+const productLayers = [
+  {
+    tag: "My Recovery",
+    title: "我今天是不是快透支了？",
+    body: "先把身体和情绪状态解释清楚，再给一个最该做的动作。",
+  },
+  {
+    tag: "Care Circle",
+    title: "谁能在我状态变差时真的接住我？",
+    body: "让可信联系人看到被授权的状态，并把留言变成电话、减负和实际照看。",
+  },
+  {
+    tag: "Support Beacon",
+    title: "我不想打扰熟人时，去哪里求助？",
+    body: "匿名场只承接主动求助，不公开原始健康数据，不广播危险状态。",
+  },
+  {
+    tag: "Safety Plan",
+    title: "真正危险时，该找谁？",
+    body: "高风险只进入亲友、急救和专业帮助，不把判断交给陌生人。",
+  },
 ];
 
 function getSimulationStage(progress: number, riskScore: number) {
@@ -187,7 +237,7 @@ function getSimulationStage(progress: number, riskScore: number) {
 
   return {
     label: "Support Ready",
-    detail: "风险分已越过 70，系统不让用户继续硬撑，而是立刻给出恢复动作。",
+    detail: "风险分已越过 70，系统不让用户继续硬撑，而是立刻给出恢复动作，并建议联系关怀圈。",
   };
 }
 
@@ -293,6 +343,12 @@ function App() {
   const [timer, setTimer] = useState(90);
   const [isBreathing, setIsBreathing] = useState(false);
   const [supportResult, setSupportResult] = useState("还没开始恢复动作");
+  const [careAction, setCareAction] = useState(
+    "关怀圈不是监视，而是让用户指定谁可以在什么时候被拉进来。",
+  );
+  const [beaconAction, setBeaconAction] = useState(
+    "匿名支持房间只接主动求助，不公开危险状态，不做陌生人预警。",
+  );
   const [bluetoothState, setBluetoothState] = useState<BluetoothState>("idle");
   const [bluetoothMessage, setBluetoothMessage] = useState(
     "在 Chrome + HTTPS 下，可以尝试连接华为手环的心率广播。",
@@ -423,6 +479,8 @@ function App() {
   const demoRiskScore = Math.round(28 + simulationProgress * 60);
   const demoStage = getSimulationStage(simulationProgress, demoRiskScore);
   const demoInterventionVisible = demoRiskScore >= 70;
+  const careHeadline = buildCareHeadline(evaluation.status);
+  const beaconGuardrail = buildBeaconGuardrail();
 
   function updateSnapshot<K extends keyof Snapshot>(key: K, value: Snapshot[K]) {
     setCustomSnapshot((current) => ({
@@ -615,6 +673,29 @@ function App() {
     setBluetoothMessage("已手动断开。需要时可以重新连接心率广播。");
   }
 
+  function handleCareAction(contact: CareContact, action: "message" | "call" | "lighten") {
+    if (action === "message") {
+      setCareAction(`已向 ${contact.name} 发送关怀留言草稿：我今天恢复有点跟不上，晚点能提醒我先下线吗？`);
+      return;
+    }
+
+    if (action === "call") {
+      setCareAction(`已为 ${contact.name} 准备电话动作。真正危险时，EasePulse 会优先把你推向真实通话，而不是继续停留在 App 里。`);
+      return;
+    }
+
+    setCareAction(`已向 ${contact.name} 发出减负请求：帮我挡掉一个高耗能安排，让我先恢复一下。`);
+  }
+
+  function handleBeaconAction(room: BeaconRoom, mode: "post" | "join") {
+    if (mode === "post") {
+      setBeaconAction(`已在「${room.title}」生成匿名求助卡片：${room.prompt}`);
+      return;
+    }
+
+    setBeaconAction(`已进入「${room.title}」，系统只开放预设支持和恢复动作，不开放高风险围观。`);
+  }
+
   return (
     <div className={`app-shell mode-${liveMode.key}`}>
       <div className="ambient ambient-left" />
@@ -623,10 +704,10 @@ function App() {
       <header className="topbar">
         <div className="topbar-copy">
           <p className="eyebrow">EasePulse 息伴</p>
-          <h1>让今天的疲惫，有一个温和的出口。</h1>
+          <h1>把透支感，变成能被回应的恢复网络。</h1>
           <p className="topbar-lede">
-            我把页面往更轻、更安静、更真实可用的方向收了一次：颜色换成更浅的海盐蓝，
-            比赛信息降级，首页保留真实入口，数据桥接页补上了桌面蓝牙心率联动的 Beta 能力。
+            这版在原有数据桥接和恢复闭环上，补上了关怀圈、匿名支持和增长路径：
+            先让用户自己看懂状态，再把可信的人拉进来，最后用匿名支持房间承接那些一时不想打扰熟人的时刻。
           </p>
         </div>
 
@@ -661,7 +742,7 @@ function App() {
             <div className="pulse-mark">EP</div>
             <div>
               <h2>息伴</h2>
-              <p>给高压成年人留一个先被看见、再被支持的缓冲区。</p>
+              <p>给高压成年人留一个先被看见、再被接住的缓冲区。</p>
             </div>
           </section>
 
@@ -737,6 +818,46 @@ function App() {
               <section className="card">
                 <div className="split-header">
                   <div>
+                    <p className="section-title">产品分层</p>
+                    <p className="section-subtitle">
+                      这不是一个泛健康面板，而是从“我自己”逐层走向“真实支持网络”的产品结构。
+                    </p>
+                  </div>
+                </div>
+                <div className="layer-grid">
+                  {productLayers.map((item) => (
+                    <article key={item.title} className="layer-card">
+                      <span>{item.tag}</span>
+                      <strong>{item.title}</strong>
+                      <p>{item.body}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="card growth-card-shell">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">增长闭环</p>
+                    <p className="section-subtitle">
+                      增长不是额外拼接的拉新手段，而是产品机制本身会自然扩散到关怀关系里。
+                    </p>
+                  </div>
+                </div>
+                <div className="growth-grid">
+                  {growthLoopSteps.map((item, index) => (
+                    <article key={item.title} className="growth-step-card">
+                      <span>{`0${index + 1}`}</span>
+                      <strong>{item.title}</strong>
+                      <p>{item.body}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="card">
+                <div className="split-header">
+                  <div>
                     <p className="section-title">真实入口</p>
                     <p className="section-subtitle">
                       这些都是真正能点开的链接，不再只是视觉上的“像按钮”。
@@ -767,7 +888,7 @@ function App() {
                   <div>
                     <p className="section-title">竞品参考</p>
                     <p className="section-subtitle">
-                      我挑了 4 个官方站点，分别看它们怎么组织恢复、情绪支持和更放松的视觉。
+                      这一版不是抄一个竞品，而是分别借鉴恢复逻辑、可信共享和温和交互。
                     </p>
                   </div>
                 </div>
@@ -792,16 +913,16 @@ function App() {
 
               <section className="card metrics-strip">
                 <div>
-                  <span>主色方向</span>
-                  <strong>浅蒂凡尼蓝 + 海盐白</strong>
+                  <span>增长买点</span>
+                  <strong>关怀圈邀请 + 匿名支持补位</strong>
                 </div>
                 <div>
-                  <span>交互原则</span>
-                  <strong>入口真实可点，不做假桥接</strong>
+                  <span>安全边界</span>
+                  <strong>陌生人看不到危险状态</strong>
                 </div>
                 <div>
-                  <span>设备能力</span>
-                  <strong>网页先接心率广播，动作识别后补原生</strong>
+                  <span>设备路径</span>
+                  <strong>先 Huawei Health，再补 iOS 原生桥</strong>
                 </div>
               </section>
 
@@ -1164,70 +1285,262 @@ function App() {
                   </button>
                 </div>
               </section>
+
+              <section className="card care-preview-card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">今天谁会接住你</p>
+                    <h3>{careHeadline}</h3>
+                    <p className="section-subtitle">
+                      如果你今天不想一个人扛，这里会优先把你推向可信的人，而不是陌生人的围观。
+                    </p>
+                  </div>
+                  <div className="chip">{careContacts.length} 位关怀联系人</div>
+                </div>
+                <div className="care-preview-grid">
+                  {careContacts.slice(0, 2).map((contact) => (
+                    <article key={contact.id} className="care-mini-card">
+                      <span>{contact.role}</span>
+                      <strong>{contact.name}</strong>
+                      <p>{contact.promise}</p>
+                    </article>
+                  ))}
+                </div>
+                <div className="hero-actions">
+                  <button type="button" className="button-primary" onClick={() => setView("care")}>
+                    打开关怀圈
+                  </button>
+                  <button type="button" className="button-secondary" onClick={() => setView("beacon")}>
+                    查看匿名支持
+                  </button>
+                </div>
+              </section>
             </div>
           )}
 
           {view === "support" && (
-            <div className="page-grid support-layout">
-              <section className="card breathing-card">
-                <p className="section-title">即时恢复动作</p>
-                <div className={isBreathing ? "breathing-visual active" : "breathing-visual"}>
-                  <div className="breathing-core" />
+            <div className="page-grid">
+              <div className="support-layout">
+                <section className="card breathing-card">
+                  <p className="section-title">即时恢复动作</p>
+                  <div className={isBreathing ? "breathing-visual active" : "breathing-visual"}>
+                    <div className="breathing-core" />
+                  </div>
+                  <div className="timer-block">
+                    <strong>{timer}s</strong>
+                    <span>吸气 4 秒，停 2 秒，呼气 6 秒</span>
+                  </div>
+                  <div className="hero-actions">
+                    <button type="button" className="button-primary" onClick={startBreathing}>
+                      开始 90 秒呼吸
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() =>
+                        setSupportResult("已经跳过呼吸练习，建议至少起身走 3 分钟。")
+                      }
+                    >
+                      跳过，先走动
+                    </button>
+                  </div>
+                </section>
+
+                <section className="card coach-card">
+                  <p className="section-title">支持文案</p>
+                  <blockquote>
+                    {evaluation.status === "safety"
+                      ? "你现在最重要的不是继续扛，而是先把自己交给可信任的人照看。"
+                      : "你现在的状态值得被认真对待，但不需要用恐慌解决。先把节律找回来。"}
+                  </blockquote>
+                  <p className="support-result">{supportResult}</p>
+                  <div className="feedback-row">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSupportResult("反馈已记录：有好一些。下一步保持低强度节奏。")
+                      }
+                    >
+                      好一些
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSupportResult("反馈已记录：变化不大。建议再做一次 3 分钟离屏恢复。")
+                      }
+                    >
+                      没变化
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSupportResult("反馈已记录：更差。请进入安全边界页面，不建议继续普通安抚。")
+                      }
+                    >
+                      更差
+                    </button>
+                  </div>
+                </section>
+              </div>
+
+              <section className="card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">支持网络</p>
+                    <p className="section-subtitle">
+                      息伴不会把所有支持都塞进一个聊天框里，而是根据场景把你带向不同的人和不同的支持强度。
+                    </p>
+                  </div>
                 </div>
-                <div className="timer-block">
-                  <strong>{timer}s</strong>
-                  <span>吸气 4 秒，停 2 秒，呼气 6 秒</span>
+                <div className="support-network-grid">
+                  <article className="network-card">
+                    <span>Care Circle</span>
+                    <strong>把恢复动作交给熟人世界继续接住</strong>
+                    <p>适合联系伴侣、朋友、家人或工作搭子，让留言变成电话、陪伴和减负。</p>
+                    <button type="button" className="button-secondary" onClick={() => setView("care")}>
+                      去关怀圈
+                    </button>
+                  </article>
+                  <article className="network-card">
+                    <span>Support Beacon</span>
+                    <strong>不想打扰熟人时，先进入匿名支持房间</strong>
+                    <p>适合会前紧张、跨时区和深夜难以下线这类场景，但不承接危险广播。</p>
+                    <button type="button" className="button-secondary" onClick={() => setView("beacon")}>
+                      去匿名支持
+                    </button>
+                  </article>
                 </div>
+              </section>
+            </div>
+          )}
+
+          {view === "care" && (
+            <div className="page-grid">
+              <section className="card care-hero-card">
+                <p className="section-title">Care Circle</p>
+                <h2>{careHeadline}</h2>
+                <p className="lede">
+                  关怀圈不是让所有人看到你的原始数据，而是让你选择谁能在关键时刻真的做点什么。
+                </p>
                 <div className="hero-actions">
-                  <button type="button" className="button-primary" onClick={startBreathing}>
-                    开始 90 秒呼吸
+                  <button type="button" className="button-primary" onClick={() => setView("support")}>
+                    回到恢复动作
                   </button>
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    onClick={() =>
-                      setSupportResult("已经跳过呼吸练习，建议至少起身走 3 分钟。")
-                    }
-                  >
-                    跳过，先走动
+                  <button type="button" className="button-secondary" onClick={() => setView("safety")}>
+                    查看安全计划
                   </button>
                 </div>
               </section>
 
-              <section className="card coach-card">
-                <p className="section-title">支持文案</p>
-                <blockquote>
-                  {evaluation.status === "safety"
-                    ? "你现在最重要的不是继续扛，而是先把自己交给可信任的人照看。"
-                    : "你现在的状态值得被认真对待，但不需要用恐慌解决。先把节律找回来。"}
-                </blockquote>
-                <p className="support-result">{supportResult}</p>
-                <div className="feedback-row">
+              <section className="card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">共享分层</p>
+                    <p className="section-subtitle">
+                      先分清谁能看什么，再设计提醒和互动，才能既安全又有增长价值。
+                    </p>
+                  </div>
+                </div>
+                <div className="sharing-grid">
+                  {sharingNotes.map((item) => (
+                    <article key={item.title} className="sharing-card">
+                      <span>{item.title}</span>
+                      <strong>{item.detail}</strong>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">我的关怀联系人</p>
+                    <p className="section-subtitle">
+                      比赛版先展示最真实的动作：留言、电话、帮忙减负。后续 iOS 才接系统级共享与通知。
+                    </p>
+                  </div>
+                </div>
+                <div className="care-grid">
+                  {careContacts.map((contact) => (
+                    <CareContactCard
+                      key={contact.id}
+                      contact={contact}
+                      onAction={handleCareAction}
+                    />
+                  ))}
+                </div>
+                <div className="action-log">{careAction}</div>
+              </section>
+
+              <section className="card growth-card-shell">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">为什么它会增长</p>
+                    <p className="section-subtitle">
+                      每一个关怀联系人都不是被动围观者，而是会因为真实互动安装 App、留下来、形成双人关系的入口。
+                    </p>
+                  </div>
+                </div>
+                <div className="growth-grid">
+                  {growthLoopSteps.map((item, index) => (
+                    <article key={item.title} className="growth-step-card">
+                      <span>{`0${index + 1}`}</span>
+                      <strong>{item.title}</strong>
+                      <p>{item.body}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {view === "beacon" && (
+            <div className="page-grid">
+              <section className="card beacon-hero-card">
+                <p className="section-title">Support Beacon</p>
+                <h2>当你不想立刻打扰熟人，也不该一个人扛。</h2>
+                <p className="lede">
+                  匿名支持房间不是危险广播广场，而是一个先承接主动求助、再把人温和送回真实支持网络的过渡层。
+                </p>
+                <div className="hero-actions">
                   <button
                     type="button"
-                    onClick={() =>
-                      setSupportResult("反馈已记录：有好一些。下一步保持低强度节奏。")
-                    }
+                    className="button-primary"
+                    onClick={() => handleBeaconAction(beaconRooms[0], "post")}
                   >
-                    好一些
+                    发起匿名求助
                   </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSupportResult("反馈已记录：变化不大。建议再做一次 3 分钟离屏恢复。")
-                    }
-                  >
-                    没变化
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSupportResult("反馈已记录：更差。请进入安全边界页面，不建议继续普通安抚。")
-                    }
-                  >
-                    更差
+                  <button type="button" className="button-secondary" onClick={() => setView("care")}>
+                    转到关怀圈
                   </button>
                 </div>
+              </section>
+
+              <section className="card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">匿名支持房间</p>
+                    <p className="section-subtitle">
+                      房间按工作与恢复场景划分，不按疾病标签划分，也不展示任何敏感原始数据。
+                    </p>
+                  </div>
+                </div>
+                <div className="beacon-grid">
+                  {beaconRooms.map((room) => (
+                    <BeaconRoomCard key={room.id} room={room} onAction={handleBeaconAction} />
+                  ))}
+                </div>
+              </section>
+
+              <section className="card guardrail-card">
+                <p className="section-title">匿名支持边界</p>
+                <h3>{beaconGuardrail}</h3>
+                <ul className="bullet-list">
+                  <li>只有用户主动发起，才会进入匿名支持房间。</li>
+                  <li>第一阶段不开放私信和原始生理数据展示。</li>
+                  <li>一旦出现危险症状或明显恶化，只转向关怀圈和安全升级。</li>
+                </ul>
+                <p className="support-result">{beaconAction}</p>
               </section>
             </div>
           )}
@@ -1251,7 +1564,7 @@ function App() {
                 <p className="section-title">本周洞察</p>
                 <h3>{buildInsight(activeHistory)}</h3>
                 <p>
-                  比赛版先用截图和手工桥接保证真实性；如果要做动作联动或系统级同步，下一阶段再上原生桥。
+                  比赛版先用截图和手工桥接保证真实性；如果要做系统级共享、亲友提醒和匿名支持分发，下一阶段再上 iOS 原生桥和服务端权限层。
                 </p>
               </section>
             </div>
@@ -1266,6 +1579,7 @@ function App() {
                   <li>不会承诺预防猝死，不会替代医生判断。</li>
                   <li>遇到胸闷、呼吸困难、明显头晕等急性不适，停止普通支持流程。</li>
                   <li>高风险场景优先提示联系紧急联系人、急救或专业帮助。</li>
+                  <li>陌生人世界不会看到你的危险状态，也不承担风险判断责任。</li>
                 </ul>
               </section>
 
@@ -1330,9 +1644,9 @@ function PitchDemo({
     <div className="pitch-layout">
       <div className="pitch-copy">
         <p className="eyebrow">iPhone-First Demo</p>
-        <h2>用一段很短的模拟，让评委看见今天为什么需要被温柔接住。</h2>
+        <h2>先让评委看见透支是怎么被发现、被接住、再被转交给真实支持网络的。</h2>
         <p className="lede">
-          这一屏不去卖复杂技术，而是把情绪风险的节奏讲清楚：先是睡眠不足与心率上扬，再是风险跨线，最后是 AI 给出一个不会增加压力的恢复动作。
+          这一屏不去卖复杂技术，而是把节奏讲清楚：先是睡眠不足与心率上扬，再是风险跨线，随后给出恢复动作，并把用户引向关怀圈而不是继续独自硬扛。
         </p>
 
         <div className="hero-actions">
@@ -1448,7 +1762,7 @@ function PitchDemo({
               <div className="intervention-sheet">
                 <span>AI Intervention</span>
                 <strong>You don&apos;t have to push through this alone.</strong>
-                <p>Your load is rising fast. Pause for one minute and begin guided breathing.</p>
+                <p>Your load is rising fast. Pause for one minute, then decide whether to invite your care circle.</p>
                 <button type="button" className="button-primary" onClick={onOpenSupport}>
                   Begin 4-4-4 Breathing
                 </button>
@@ -1475,6 +1789,82 @@ function MetricCard({
       <span>{label}</span>
       <strong>{value}</strong>
       {detail ? <small>{detail}</small> : null}
+    </article>
+  );
+}
+
+function CareContactCard({
+  contact,
+  onAction,
+}: {
+  contact: CareContact;
+  onAction: (contact: CareContact, action: "message" | "call" | "lighten") => void;
+}) {
+  const statusLabel =
+    contact.status === "online"
+      ? "在线"
+      : contact.status === "reachable"
+        ? "可联系"
+        : "稍后联系";
+
+  return (
+    <article className="care-contact-card">
+      <div className="contact-topline">
+        <div>
+          <span>{contact.role}</span>
+          <strong>{contact.name}</strong>
+        </div>
+        <span className={`status-badge status-${contact.status}`}>{statusLabel}</span>
+      </div>
+      <div className="contact-meta">
+        <span className="sharing-chip">{sharingTierLabels[contact.sharingTier]}</span>
+      </div>
+      <p className="contact-promise">{contact.promise}</p>
+      <p className="contact-note">{contact.note}</p>
+      <div className="card-actions">
+        <button type="button" className="button-secondary" onClick={() => onAction(contact, "message")}>
+          留一句话
+        </button>
+        <button type="button" className="button-secondary" onClick={() => onAction(contact, "call")}>
+          打电话
+        </button>
+        <button type="button" className="button-secondary" onClick={() => onAction(contact, "lighten")}>
+          请他减负
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function BeaconRoomCard({
+  room,
+  onAction,
+}: {
+  room: BeaconRoom;
+  onAction: (room: BeaconRoom, mode: "post" | "join") => void;
+}) {
+  return (
+    <article className="beacon-room-card">
+      <div className="contact-topline">
+        <div>
+          <span className={`tone-chip tone-${room.tone}`}>{room.tone}</span>
+          <strong>{room.title}</strong>
+        </div>
+        <div className="room-meta">
+          <small>{room.members} 人</small>
+          <small>{room.responseTime}</small>
+        </div>
+      </div>
+      <p className="contact-promise">{room.description}</p>
+      <p className="contact-note">求助卡片：{room.prompt}</p>
+      <div className="card-actions">
+        <button type="button" className="button-secondary" onClick={() => onAction(room, "post")}>
+          匿名发起
+        </button>
+        <button type="button" className="button-secondary" onClick={() => onAction(room, "join")}>
+          进入房间
+        </button>
+      </div>
     </article>
   );
 }

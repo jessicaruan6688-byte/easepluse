@@ -35,11 +35,13 @@
 }
 
 html {
+  height: 100%;
   scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
+  height: 100%;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -71,16 +73,21 @@ img {
 }
 
 #root {
+  height: 100%;
   min-height: 100vh;
   overflow-x: hidden;
 }
 
 .app-shell {
   position: relative;
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
   padding: 32px;
   overflow-x: hidden;
-  overflow-y: visible;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 .app-shell.mode-rest {
@@ -1370,3 +1377,213 @@ img {
     height: 150px;
   }
 }
+
+/* --- social-expansion-start --- */
+.layer-grid,
+.growth-grid,
+.sharing-grid,
+.care-grid,
+.care-preview-grid,
+.support-network-grid,
+.beacon-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.layer-grid,
+.growth-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.sharing-grid,
+.support-network-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.care-grid,
+.beacon-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.care-preview-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.layer-card,
+.growth-step-card,
+.sharing-card,
+.care-mini-card,
+.care-contact-card,
+.beacon-room-card,
+.network-card,
+.action-log {
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-soft);
+}
+
+.layer-card span,
+.growth-step-card span,
+.sharing-card span,
+.network-card span,
+.care-mini-card span,
+.sharing-chip,
+.tone-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.layer-card strong,
+.growth-step-card strong,
+.sharing-card strong,
+.network-card strong,
+.care-mini-card strong,
+.contact-topline strong,
+.guardrail-card h3,
+.care-preview-card h3,
+.care-hero-card h2,
+.beacon-hero-card h2 {
+  display: block;
+  margin: 14px 0 8px;
+  color: #1e4554;
+}
+
+.layer-card p,
+.growth-step-card p,
+.sharing-card p,
+.network-card p,
+.care-mini-card p,
+.contact-promise,
+.contact-note,
+.action-log,
+.room-meta small {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.growth-step-card span {
+  margin-bottom: 4px;
+}
+
+.care-preview-card,
+.care-hero-card,
+.beacon-hero-card,
+.guardrail-card {
+  background:
+    radial-gradient(circle at top right, rgba(121, 207, 224, 0.12), transparent 34%),
+    var(--bg-card);
+}
+
+.contact-topline,
+.card-actions,
+.contact-meta,
+.room-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.contact-topline {
+  align-items: flex-start;
+}
+
+.contact-topline > div:first-child span,
+.room-meta small {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+}
+
+.contact-promise {
+  margin-top: 16px;
+  font-size: 0.98rem;
+}
+
+.contact-note {
+  margin-top: 10px;
+  font-size: 0.92rem;
+}
+
+.card-actions {
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.action-log {
+  margin-top: 18px;
+  border-style: dashed;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.status-online {
+  background: rgba(79, 186, 184, 0.14);
+  color: var(--accent-deep);
+}
+
+.status-reachable {
+  background: rgba(242, 190, 124, 0.16);
+  color: #b56d1d;
+}
+
+.status-offline {
+  background: rgba(23, 53, 67, 0.08);
+  color: var(--ink-soft);
+}
+
+.tone-steady {
+  background: rgba(121, 207, 224, 0.16);
+  color: #266d84;
+}
+
+.tone-warm {
+  background: rgba(242, 190, 124, 0.16);
+  color: #b56d1d;
+}
+
+.tone-guarded {
+  background: rgba(242, 160, 174, 0.18);
+  color: #bf5c71;
+}
+
+.room-meta {
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+.guardrail-card h3,
+.care-preview-card h3 {
+  font-family: "Iowan Old Style", "STSong", serif;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 1180px) {
+  .layer-grid,
+  .growth-grid,
+  .sharing-grid,
+  .care-grid,
+  .care-preview-grid,
+  .support-network-grid,
+  .beacon-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* --- social-expansion-end --- */

@@ -7,7 +7,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.enableBridgeScrollingIfNeeded()
+        }
         return true
     }
 
@@ -26,7 +28,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        enableBridgeScrollingIfNeeded()
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
@@ -44,6 +46,60 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Feel free to add additional processing here, but if you want the App API to support
         // tracking app url opens, make sure to keep this call
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    }
+
+    private func enableBridgeScrollingIfNeeded() {
+        guard
+            let rootController = keyWindow()?.rootViewController,
+            let bridgeController = findBridgeController(in: rootController),
+            let scrollView = bridgeController.webView?.scrollView
+        else {
+            return
+        }
+
+        scrollView.isScrollEnabled = true
+        scrollView.alwaysBounceVertical = true
+        scrollView.bounces = true
+        scrollView.panGestureRecognizer.isEnabled = true
+    }
+
+    private func keyWindow() -> UIWindow? {
+        if let window {
+            return window
+        }
+
+        return UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)
+    }
+
+    private func findBridgeController(in controller: UIViewController) -> CAPBridgeViewController? {
+        if let bridgeController = controller as? CAPBridgeViewController {
+            return bridgeController
+        }
+
+        for child in controller.children {
+            if let bridgeController = findBridgeController(in: child) {
+                return bridgeController
+            }
+        }
+
+        if let navigationController = controller as? UINavigationController,
+           let visibleController = navigationController.visibleViewController {
+            return findBridgeController(in: visibleController)
+        }
+
+        if let tabController = controller as? UITabBarController,
+           let selectedController = tabController.selectedViewController {
+            return findBridgeController(in: selectedController)
+        }
+
+        if let presentedController = controller.presentedViewController {
+            return findBridgeController(in: presentedController)
+        }
+
+        return nil
     }
 
 }

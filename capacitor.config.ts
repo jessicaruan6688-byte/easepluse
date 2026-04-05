@@ -5,6 +5,10 @@ const config: CapacitorConfig = {
   appName: "EasePulse",
   webDir: "dist",
   bundledWebRuntime: false,
+  ios: {
+    scrollEnabled: true,
+    contentInset: "automatic",
+  },
 };
 
 export default config;

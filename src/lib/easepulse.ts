@@ -54,6 +54,33 @@ export type Evaluation = {
   focusLabel: string;
 };
 
+export type SharingTier = "summary" | "trend" | "alerts";
+
+export type CareContact = {
+  id: string;
+  name: string;
+  role: string;
+  status: "online" | "offline" | "reachable";
+  sharingTier: SharingTier;
+  promise: string;
+  note: string;
+};
+
+export type BeaconRoom = {
+  id: string;
+  title: string;
+  prompt: string;
+  description: string;
+  members: number;
+  responseTime: string;
+  tone: "steady" | "warm" | "guarded";
+};
+
+export type GrowthLoopStep = {
+  title: string;
+  body: string;
+};
+
 const statusMeta: Record<
   StatusKey,
   Pick<Evaluation, "statusLabel" | "message" | "nextActionTitle" | "focusLabel">
@@ -211,7 +238,9 @@ export function evaluateSnapshot(snapshot: Snapshot): Evaluation {
   };
 }
 
-function buildHistory(values: Array<Pick<TrendPoint, "sleepHours" | "stressLevel" | "moodScore" | "restingHeartRate">>): TrendPoint[] {
+function buildHistory(
+  values: Array<Pick<TrendPoint, "sleepHours" | "stressLevel" | "moodScore" | "restingHeartRate">>,
+): TrendPoint[] {
   return values.map((value, index) => {
     const tempSnapshot: Snapshot = {
       sleepHours: value.sleepHours,
@@ -378,3 +407,108 @@ export const defaultCustomSnapshot: Snapshot = {
   notes: "这里会写入你自己的 Band 9 数据和当天感受。",
   symptoms: ["none"],
 };
+
+export const sharingTierLabels: Record<SharingTier, string> = {
+  summary: "只看状态等级",
+  trend: "查看趋势与留言",
+  alerts: "接收安全升级提醒",
+};
+
+export const careContacts: CareContact[] = [
+  {
+    id: "contact-lina",
+    name: "Lina",
+    role: "伴侣",
+    status: "online",
+    sharingTier: "alerts",
+    promise: "当你连续两天恢复分下滑时，她会先给你打电话，而不是只发一句“早点睡”。",
+    note: "最适合接安全升级提醒和真正的电话联系。",
+  },
+  {
+    id: "contact-hao",
+    name: "郝哥",
+    role: "工作搭子",
+    status: "reachable",
+    sharingTier: "trend",
+    promise: "当你进入“建议关注”时，他可以帮你顶掉一个高耗能会议。",
+    note: "适合承接工作场景里的减负动作。",
+  },
+  {
+    id: "contact-mom",
+    name: "妈妈",
+    role: "家人",
+    status: "offline",
+    sharingTier: "summary",
+    promise: "她不会看原始数据，只会在状态持续不佳时看到一句更容易理解的提醒。",
+    note: "适合情感支持，但不应该承接复杂判断。",
+  },
+];
+
+export const beaconRooms: BeaconRoom[] = [
+  {
+    id: "cross-timezone",
+    title: "跨时区恢复站",
+    prompt: "今天又被多个时区拉扯，想找人提醒自己早点下线。",
+    description: "给跨境、电商、外贸和远程协作人群的匿名恢复房间，只分享场景，不公开原始健康数据。",
+    members: 124,
+    responseTime: "约 2 分钟",
+    tone: "steady",
+  },
+  {
+    id: "pre-meeting",
+    title: "开会前缓冲间",
+    prompt: "汇报前心跳有点快，想找人一起做 90 秒呼吸。",
+    description: "适合会前紧绷、发言焦虑和临时高压，不鼓励长聊，优先推荐短动作。",
+    members: 83,
+    responseTime: "约 1 分钟",
+    tone: "warm",
+  },
+  {
+    id: "late-night",
+    title: "今晚先下线",
+    prompt: "我知道该休息，但就是停不下来，想找个出口让自己收工。",
+    description: "给熬夜后还在硬撑的人，一个匿名但克制的支持场。",
+    members: 156,
+    responseTime: "约 3 分钟",
+    tone: "guarded",
+  },
+];
+
+export const growthLoopSteps: GrowthLoopStep[] = [
+  {
+    title: "一个人先用起来",
+    body: "用户先为自己记录恢复状态，不需要先拉别人参与，降低首次使用门槛。",
+  },
+  {
+    title: "邀请 1 位关怀联系人",
+    body: "当用户发现自己真的会被看见，就更愿意把伴侣、朋友或同事拉进来。",
+  },
+  {
+    title: "形成双人或小圈层习惯",
+    body: "留言、提醒、电话和减负动作会把虚拟支持变成真实关系里的协作。",
+  },
+  {
+    title: "匿名恢复社区补位",
+    body: "当用户暂时不想打扰熟人时，可进入场景化匿名支持房间，不暴露危险状态。",
+  },
+];
+
+export function buildCareHeadline(status: StatusKey) {
+  if (status === "safety") {
+    return "现在该联系可信的人，而不是继续独自扛。";
+  }
+
+  if (status === "attention") {
+    return "今天适合把一位关怀联系人拉进来，一起分担一点负荷。";
+  }
+
+  if (status === "recovery") {
+    return "恢复不足时，最有效的支持往往来自一个懂你的人，而不是更多道理。";
+  }
+
+  return "平稳时建立关怀圈，才不会等到透支时才想起求助。";
+}
+
+export function buildBeaconGuardrail() {
+  return "匿名世界只承接主动求助和轻支持，不公开危险状态，不把高风险判断交给陌生人。";
+}
