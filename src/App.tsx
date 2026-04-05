@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import {
   buildInsight,
   defaultCustomSnapshot,
@@ -20,6 +20,23 @@ type ViewKey =
   | "safety";
 
 type UploadMap = Record<"sleep" | "heart" | "stress", string | null>;
+type BluetoothState = "idle" | "connecting" | "connected" | "unsupported" | "error";
+type LiveModeKey = "rest" | "focus" | "release";
+
+type QuickLink = {
+  badge: string;
+  label: string;
+  note: string;
+  href: string;
+};
+
+type ReferenceLink = {
+  tag: string;
+  name: string;
+  vibe: string;
+  takeaway: string;
+  href: string;
+};
 
 const storageKey = "easepulse-custom-snapshot";
 const uploadStorageKey = "easepulse-uploads";
@@ -42,23 +59,184 @@ const symptomOptions: SymptomKey[] = [
   "dizzy",
 ];
 
+const quickLinks: QuickLink[] = [
+  {
+    badge: "线上站点",
+    label: "查看 Zeabur 真实网页",
+    note: "已经接入 GitHub 自动部署，推送后会自动更新线上站。",
+    href: "https://easepluse.zeabur.app/",
+  },
+  {
+    badge: "代码仓库",
+    label: "打开 GitHub 主仓库",
+    note: "所有改动都从这里推送，再由 Zeabur 自动构建。",
+    href: "https://github.com/jessicaruan6688-byte/easepluse",
+  },
+  {
+    badge: "官方说明",
+    label: "查看华为手环配对说明",
+    note: "官方链路仍然是先接入 Huawei Health，再做后续数据桥接。",
+    href: "https://consumer.huawei.com/en/support/content/en-us15935171/",
+  },
+  {
+    badge: "浏览器能力",
+    label: "查看 Chrome Web Bluetooth",
+    note: "桌面网页可尝试连接心率广播，但前提是设备真的开放标准 BLE 服务。",
+    href: "https://developer.chrome.com/docs/capabilities/bluetooth",
+  },
+];
+
+const referenceLinks: ReferenceLink[] = [
+  {
+    tag: "Wearable Recovery",
+    name: "WHOOP",
+    vibe: "信息层级很清楚，把恢复、负荷、睡眠拆成用户能立刻理解的三个入口。",
+    takeaway: "适合借鉴指标编排方式，不需要复制它偏硬核的黑色科技感。",
+    href: "https://www.whoop.com/us/en/",
+  },
+  {
+    tag: "Gentle Wellness",
+    name: "Gentler Streak",
+    vibe: "语气温和，强调恢复和节奏，不会一味要求用户更努力。",
+    takeaway: "很适合我们参考“放松、轻盈、可信”的产品氛围。",
+    href: "https://gentler.app/",
+  },
+  {
+    tag: "Calm Guidance",
+    name: "Headspace",
+    vibe: "留白足、节奏慢、入口按场景组织，压力大时不需要思考就能往下走。",
+    takeaway: "适合参考首页的引导方式和文案语气。",
+    href: "https://www.headspace.com/",
+  },
+  {
+    tag: "Rest Content",
+    name: "Calm",
+    vibe: "内容块清楚，睡眠和放松内容都能在第一屏快速建立信任。",
+    takeaway: "适合参考情绪支持模块和更柔和的色彩氛围。",
+    href: "https://www.calm.com/",
+  },
+];
+
+const designNotes = [
+  {
+    title: "更轻的蒂凡尼蓝",
+    body: "主色从深青绿改成浅海盐蓝和玻璃感白，整体更松弛，页面不会显得闷。",
+  },
+  {
+    title: "把“比赛 Demo”降到二级",
+    body: "右上角不再用两颗大徽标抢注意力，只保留更克制的状态信息。",
+  },
+  {
+    title: "把可点击入口做实",
+    body: "首页现在有真实线上站点、GitHub、官方配对说明和竞品参考外链，不再只是卡片摆设。",
+  },
+];
+
+const bluetoothChecklist = [
+  "需要 HTTPS 下的 Chrome 或 Edge，Safari 目前不适合做这条链路。",
+  "手环需要支持并开启 HR Data Broadcasts，浏览器才能发现标准心率服务。",
+  "网页现在能真实联动的是心率广播；甩手动作的 IMU 事件需要原生桥接，不应在网页里假装已打通。",
+];
+
+function readStoredValue<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getLiveMode(
+  bluetoothState: BluetoothState,
+  heartRate: number | null,
+  isCustomMode: boolean,
+): { key: LiveModeKey; label: string; detail: string } {
+  if (bluetoothState === "connected" && heartRate !== null) {
+    if (heartRate < 82) {
+      return {
+        key: "rest",
+        label: "平稳模式",
+        detail: "页面保持最柔和的蓝绿色，适合观察今天的恢复状态。",
+      };
+    }
+
+    if (heartRate < 104) {
+      return {
+        key: "focus",
+        label: "激活模式",
+        detail: "心率已开始上来，页面会强调当前状态和快速恢复动作。",
+      };
+    }
+
+    return {
+      key: "release",
+      label: "释放模式",
+      detail: "负荷已明显升高，页面会优先强调减负和恢复支持。",
+    };
+  }
+
+  if (isCustomMode) {
+    return {
+      key: "focus",
+      label: "真实录入",
+      detail: "当前展示的是你手动录入的真实数据，而不是预设演示场景。",
+    };
+  }
+
+  return {
+    key: "rest",
+    label: "演示浏览",
+    detail: "当前展示的是可切换的演示数据，用于看清产品闭环。",
+  };
+}
+
+function getBluetoothLabel(state: BluetoothState) {
+  if (state === "connected") {
+    return "已连接";
+  }
+
+  if (state === "connecting") {
+    return "连接中";
+  }
+
+  if (state === "unsupported") {
+    return "浏览器不支持";
+  }
+
+  if (state === "error") {
+    return "连接失败";
+  }
+
+  return "未连接";
+}
+
 function App() {
   const [view, setView] = useState<ViewKey>("overview");
   const [scenarioId, setScenarioId] = useState<string>(scenarios[0].id);
-  const [customSnapshot, setCustomSnapshot] = useState<Snapshot>(() => {
-    const raw = window.localStorage.getItem(storageKey);
-    return raw ? (JSON.parse(raw) as Snapshot) : defaultCustomSnapshot;
-  });
-  const [uploads, setUploads] = useState<UploadMap>(() => {
-    const raw = window.localStorage.getItem(uploadStorageKey);
-    return raw
-      ? (JSON.parse(raw) as UploadMap)
-      : { sleep: null, heart: null, stress: null };
-  });
+  const [customSnapshot, setCustomSnapshot] = useState<Snapshot>(() =>
+    readStoredValue(storageKey, defaultCustomSnapshot),
+  );
+  const [uploads, setUploads] = useState<UploadMap>(() =>
+    readStoredValue(uploadStorageKey, { sleep: null, heart: null, stress: null }),
+  );
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [timer, setTimer] = useState(90);
   const [isBreathing, setIsBreathing] = useState(false);
   const [supportResult, setSupportResult] = useState("还没开始恢复动作");
+  const [bluetoothState, setBluetoothState] = useState<BluetoothState>("idle");
+  const [bluetoothMessage, setBluetoothMessage] = useState(
+    "在 Chrome + HTTPS 下，可以尝试连接华为手环的心率广播。",
+  );
+  const [connectedDeviceName, setConnectedDeviceName] = useState("");
+  const [liveHeartRate, setLiveHeartRate] = useState<number | null>(null);
+  const [lastSignalAt, setLastSignalAt] = useState("");
+  const deviceRef = useRef<any>(null);
+  const characteristicRef = useRef<any>(null);
 
   useEffect(() => {
     window.localStorage.setItem(storageKey, JSON.stringify(customSnapshot));
@@ -88,6 +266,49 @@ function App() {
     return () => window.clearInterval(interval);
   }, [isBreathing, timer]);
 
+  useEffect(() => {
+    const bluetoothApi =
+      typeof navigator !== "undefined"
+        ? (navigator as Navigator & { bluetooth?: any }).bluetooth
+        : undefined;
+
+    if (!bluetoothApi) {
+      setBluetoothState("unsupported");
+      setBluetoothMessage("当前浏览器不支持 Web Bluetooth。请用 HTTPS 下的 Chrome 或 Edge 打开。");
+      return;
+    }
+
+    bluetoothApi
+      .getAvailability?.()
+      .then((available: boolean) => {
+        if (!available) {
+          setBluetoothMessage("浏览器支持蓝牙，但当前系统蓝牙不可用或未开启。");
+        }
+      })
+      .catch(() => {
+        setBluetoothMessage("浏览器支持蓝牙，但还需要在点击按钮后再请求设备权限。");
+      });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const characteristic = characteristicRef.current;
+      const device = deviceRef.current;
+
+      if (characteristic) {
+        characteristic.removeEventListener("characteristicvaluechanged", handleHeartRateChanged);
+        void characteristic.stopNotifications?.().catch(() => undefined);
+      }
+
+      if (device) {
+        device.removeEventListener("gattserverdisconnected", handleDeviceDisconnected);
+        if (device.gatt?.connected) {
+          device.gatt.disconnect();
+        }
+      }
+    };
+  }, []);
+
   const activeScenario: Scenario =
     scenarios.find((item) => item.id === scenarioId) ?? scenarios[0];
   const activeSnapshot = isCustomMode ? customSnapshot : activeScenario.snapshot;
@@ -106,8 +327,8 @@ function App() {
           : point,
       )
     : activeScenario.history;
-
   const screenshotCount = Object.values(uploads).filter(Boolean).length;
+  const liveMode = getLiveMode(bluetoothState, liveHeartRate, isCustomMode);
 
   function updateSnapshot<K extends keyof Snapshot>(key: K, value: Snapshot[K]) {
     setCustomSnapshot((current) => ({
@@ -173,19 +394,157 @@ function App() {
     setView("dashboard");
   }
 
+  function handleDeviceDisconnected() {
+    characteristicRef.current?.removeEventListener(
+      "characteristicvaluechanged",
+      handleHeartRateChanged,
+    );
+    characteristicRef.current = null;
+    deviceRef.current = null;
+    setBluetoothState("idle");
+    setConnectedDeviceName("");
+    setLiveHeartRate(null);
+    setBluetoothMessage("蓝牙设备已断开。要继续联动，请重新连接心率广播。");
+  }
+
+  function handleHeartRateChanged(event: Event) {
+    const value = (event.target as { value?: DataView | null }).value;
+
+    if (!value) {
+      return;
+    }
+
+    const flags = value.getUint8(0);
+    const usesLongValue = (flags & 0x1) === 1;
+    const heartRate = usesLongValue ? value.getUint16(1, true) : value.getUint8(1);
+
+    setLiveHeartRate(heartRate);
+    setLastSignalAt(
+      new Intl.DateTimeFormat("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).format(new Date()),
+    );
+    setBluetoothMessage("正在接收实时心率，页面模式会随心率区间自动变化。");
+  }
+
+  async function connectBand() {
+    const bluetoothApi =
+      typeof navigator !== "undefined"
+        ? (navigator as Navigator & { bluetooth?: any }).bluetooth
+        : undefined;
+
+    if (!bluetoothApi) {
+      setBluetoothState("unsupported");
+      setBluetoothMessage("当前浏览器不支持 Web Bluetooth，请改用 Chrome 或 Edge。");
+      return;
+    }
+
+    try {
+      setBluetoothState("connecting");
+      setBluetoothMessage("正在请求蓝牙权限，请从弹窗中选择开启心率广播的设备。");
+
+      const device = await bluetoothApi.requestDevice({
+        filters: [{ services: ["heart_rate"] }],
+        optionalServices: ["battery_service", "device_information"],
+      });
+      const server = await device.gatt?.connect();
+
+      if (!server) {
+        throw new Error("设备已选择，但未能建立蓝牙连接。");
+      }
+
+      const service = await server.getPrimaryService("heart_rate");
+      const characteristic = await service.getCharacteristic("heart_rate_measurement");
+
+      deviceRef.current = device;
+      characteristicRef.current = characteristic;
+
+      device.addEventListener("gattserverdisconnected", handleDeviceDisconnected);
+      characteristic.addEventListener("characteristicvaluechanged", handleHeartRateChanged);
+      await characteristic.startNotifications();
+
+      setBluetoothState("connected");
+      setConnectedDeviceName(device.name ?? "心率广播设备");
+      setBluetoothMessage("已连接设备，等待第一条心率数据。");
+      setView("connect");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotFoundError") {
+        setBluetoothState("idle");
+        setBluetoothMessage("已取消设备选择，没有建立新的蓝牙连接。");
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "连接蓝牙设备失败。";
+      setBluetoothState("error");
+      setConnectedDeviceName("");
+      setLiveHeartRate(null);
+      setBluetoothMessage(message);
+    }
+  }
+
+  async function disconnectBand() {
+    const characteristic = characteristicRef.current;
+    const device = deviceRef.current;
+
+    if (characteristic) {
+      characteristic.removeEventListener("characteristicvaluechanged", handleHeartRateChanged);
+      await characteristic.stopNotifications?.().catch(() => undefined);
+      characteristicRef.current = null;
+    }
+
+    if (device) {
+      device.removeEventListener("gattserverdisconnected", handleDeviceDisconnected);
+      if (device.gatt?.connected) {
+        device.gatt.disconnect();
+      }
+      deviceRef.current = null;
+    }
+
+    setBluetoothState("idle");
+    setConnectedDeviceName("");
+    setLiveHeartRate(null);
+    setLastSignalAt("");
+    setBluetoothMessage("已手动断开。需要时可以重新连接心率广播。");
+  }
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell mode-${liveMode.key}`}>
       <div className="ambient ambient-left" />
       <div className="ambient ambient-right" />
+
       <header className="topbar">
-        <div>
+        <div className="topbar-copy">
           <p className="eyebrow">EasePulse 息伴</p>
-          <h1>在你扛不住之前，先被看见，先被支持。</h1>
+          <h1>让今天的疲惫，有一个温和的出口。</h1>
+          <p className="topbar-lede">
+            我把页面往更轻、更安静、更真实可用的方向收了一次：颜色换成更浅的海盐蓝，
+            比赛信息降级，首页保留真实入口，数据桥接页补上了桌面蓝牙心率联动的 Beta 能力。
+          </p>
         </div>
-        <div className="topbar-actions">
-          <div className="chip chip-solid">Band 9 · iPhone 版比赛 Demo</div>
-          <div className="chip">
-            {isCustomMode ? "真实录入模式" : "评委演示模式"}
+
+        <div className="status-panel">
+          <a
+            className="status-pill status-pill-link"
+            href="https://easepluse.zeabur.app/"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <span>线上站点</span>
+            <strong>easepluse.zeabur.app</strong>
+          </a>
+          <div className="status-pill">
+            <span>当前模式</span>
+            <strong>{liveMode.label}</strong>
+          </div>
+          <div className="status-pill">
+            <span>设备状态</span>
+            <strong>
+              {bluetoothState === "connected" && liveHeartRate !== null
+                ? `${liveHeartRate} bpm`
+                : getBluetoothLabel(bluetoothState)}
+            </strong>
           </div>
         </div>
       </header>
@@ -196,11 +555,11 @@ function App() {
             <div className="pulse-mark">EP</div>
             <div>
               <h2>息伴</h2>
-              <p>高压成年人身心状态助手</p>
+              <p>给高压成年人留一个先被看见、再被支持的缓冲区。</p>
             </div>
           </section>
 
-          <nav className="nav-list">
+          <nav className="nav-list" aria-label="页面导航">
             {navItems.map((item) => (
               <button
                 key={item.key}
@@ -214,7 +573,16 @@ function App() {
           </nav>
 
           <section className="scenario-card">
-            <p className="section-title">演示场景</p>
+            <div className="split-header split-header-tight">
+              <div>
+                <p className="section-title">演示场景</p>
+                <p className="section-subtitle">
+                  这里保留的是场景切换，不再把“比赛 Demo”作为页面主视觉。
+                </p>
+              </div>
+              <div className="chip">{isCustomMode ? "真实录入中" : "演示数据"}</div>
+            </div>
+
             <div className="scenario-list">
               {scenarios.map((scenario) => (
                 <button
@@ -240,45 +608,120 @@ function App() {
         <section className="content">
           {view === "overview" && (
             <div className="page-grid">
-              <section className="hero-card card">
-                <p className="eyebrow">产品定位</p>
-                <h2>把穿戴数据变成温和、克制、可执行的支持。</h2>
-                <p className="lede">
-                  息伴连接华为手环与 iPhone，围绕睡眠、心率、压力与主观感受，
-                  把今天的状态解释清楚，再给出一个可以立刻执行的恢复动作。
-                </p>
-                <div className="hero-actions">
-                  <button type="button" className="button-primary" onClick={() => setView("connect")}>
-                    导入我的数据
-                  </button>
-                  <button type="button" className="button-secondary" onClick={() => setView("dashboard")}>
-                    直接看 Demo
-                  </button>
+              <section className="card hero-card hero-grid">
+                <div>
+                  <p className="eyebrow">Calm Recovery Companion</p>
+                  <h2>先看清状态，再给一个真的能执行的动作。</h2>
+                  <p className="lede">
+                    息伴不再只是一层展示卡片。首页现在有真实线上入口、竞品参考、官方文档和设备桥接说明；
+                    数据页则能在支持的浏览器里尝试连接心率广播，让网页自己跟着实时状态变化。
+                  </p>
+                  <div className="hero-actions">
+                    <button
+                      type="button"
+                      className="button-primary"
+                      onClick={() => setView("connect")}
+                    >
+                      接入我的设备
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => setView("dashboard")}
+                    >
+                      查看今日状态
+                    </button>
+                  </div>
+                </div>
+
+                <div className="hero-side">
+                  <div className="hero-orb" aria-hidden="true" />
+                  <div className="hero-summary">
+                    <span>现在可用</span>
+                    <strong>Zeabur 在线站点 + GitHub 自动更新</strong>
+                    <p>{liveMode.detail}</p>
+                  </div>
                 </div>
               </section>
 
-              <section className="card spotlight-card">
-                <p className="section-title">为什么今天先做 Web</p>
-                <ul className="bullet-list">
-                  <li>华为 Band 9 能配 iPhone，但同步不是为实时设计。</li>
-                  <li>苹果健康数据不能直接被网页读取，iOS 原生桥接要放到下一阶段。</li>
-                  <li>比赛先证明产品闭环和价值，再补 HealthKit 数据通路。</li>
-                </ul>
+              <section className="card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">真实入口</p>
+                    <p className="section-subtitle">
+                      这些都是真正能点开的链接，不再只是视觉上的“像按钮”。
+                    </p>
+                  </div>
+                </div>
+
+                <div className="quick-link-grid">
+                  {quickLinks.map((item) => (
+                    <a
+                      key={item.label}
+                      className="quick-link-card"
+                      href={item.href}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <span className="link-badge">{item.badge}</span>
+                      <strong>{item.label}</strong>
+                      <p>{item.note}</p>
+                      <span className="link-arrow">打开</span>
+                    </a>
+                  ))}
+                </div>
+              </section>
+
+              <section className="card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">竞品参考</p>
+                    <p className="section-subtitle">
+                      我挑了 4 个官方站点，分别看它们怎么组织恢复、情绪支持和更放松的视觉。
+                    </p>
+                  </div>
+                </div>
+
+                <div className="reference-grid">
+                  {referenceLinks.map((item) => (
+                    <a
+                      key={item.name}
+                      className="reference-card"
+                      href={item.href}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <span className="reference-tag">{item.tag}</span>
+                      <h3>{item.name}</h3>
+                      <p>{item.vibe}</p>
+                      <small>{item.takeaway}</small>
+                    </a>
+                  ))}
+                </div>
               </section>
 
               <section className="card metrics-strip">
                 <div>
-                  <span>当前主轴</span>
-                  <strong>压力恢复与情绪支持</strong>
+                  <span>主色方向</span>
+                  <strong>浅蒂凡尼蓝 + 海盐白</strong>
                 </div>
                 <div>
-                  <span>安全层</span>
-                  <strong>极端异常升级提醒</strong>
+                  <span>交互原则</span>
+                  <strong>入口真实可点，不做假桥接</strong>
                 </div>
                 <div>
-                  <span>比赛形态</span>
-                  <strong>可部署真实 Web 产品</strong>
+                  <span>设备能力</span>
+                  <strong>网页先接心率广播，动作识别后补原生</strong>
                 </div>
+              </section>
+
+              <section className="card note-grid">
+                {designNotes.map((item) => (
+                  <article key={item.title} className="note-card">
+                    <p className="section-title">{item.title}</p>
+                    <p>{item.body}</p>
+                  </article>
+                ))}
               </section>
             </div>
           )}
@@ -286,23 +729,110 @@ function App() {
           {view === "connect" && (
             <div className="page-grid">
               <section className="card">
-                <p className="section-title">数据桥接状态</p>
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">数据桥接路径</p>
+                    <p className="section-subtitle">
+                      现在把真实能做、赛后再补、以及不该假装已经完成的部分拆开写清楚。
+                    </p>
+                  </div>
+                  <div className="chip chip-solid">{getBluetoothLabel(bluetoothState)}</div>
+                </div>
+
                 <div className="bridge-grid">
                   <article className="bridge-card success">
                     <span>01</span>
                     <h3>华为运动健康</h3>
-                    <p>你已经有 Band 9 数据，这是最真实的产品基础。</p>
-                  </article>
-                  <article className="bridge-card caution">
-                    <span>02</span>
-                    <h3>苹果健康</h3>
-                    <p>可做权限桥接，但不应假设所有压力/睡眠/心率都能稳定进入 Web。</p>
+                    <p>手环真实数据的起点仍然在 Huawei Health，这个基础链路保留不变。</p>
                   </article>
                   <article className="bridge-card info">
-                    <span>03</span>
-                    <h3>比赛版 Web</h3>
-                    <p>用截图上传 + 指标录入做“真实桥接”，赛后再补 iOS HealthKit 同步。</p>
+                    <span>02</span>
+                    <h3>桌面浏览器蓝牙</h3>
+                    <p>在支持的浏览器里，可以尝试直接连接标准心率广播，让网页出现实时联动。</p>
                   </article>
+                  <article className="bridge-card caution">
+                    <span>03</span>
+                    <h3>动作传感桥接</h3>
+                    <p>如果要把“甩手”变成网页模式切换，需要 Android 或 iOS 原生桥，不应该伪装成纯网页能力。</p>
+                  </article>
+                </div>
+              </section>
+
+              <section className="card bluetooth-card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">电脑蓝牙连接 Beta</p>
+                    <p className="section-subtitle">
+                      如果你的 HUAWEI Band 9 开启了心率广播，这里可以直接尝试连接。连接后，网页色调和模式会随心率区间变化。
+                    </p>
+                  </div>
+                  <div className="chip">{connectedDeviceName || "等待选择设备"}</div>
+                </div>
+
+                <div className="bluetooth-grid">
+                  <article className="live-metric-card">
+                    <span>实时心率</span>
+                    <strong>{liveHeartRate ?? "--"}</strong>
+                    <small>{liveHeartRate !== null ? "bpm" : "尚未接收到心率数据"}</small>
+                  </article>
+                  <article className={`mode-card mode-card-${liveMode.key}`}>
+                    <span>页面联动模式</span>
+                    <strong>{liveMode.label}</strong>
+                    <p>{liveMode.detail}</p>
+                    <small>{lastSignalAt ? `最后更新 ${lastSignalAt}` : bluetoothMessage}</small>
+                  </article>
+                </div>
+
+                <div className="hero-actions">
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={bluetoothState === "connecting"}
+                    onClick={() => void connectBand()}
+                  >
+                    {bluetoothState === "connecting" ? "请求设备中..." : "连接心率广播"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={bluetoothState !== "connected"}
+                    onClick={() => void disconnectBand()}
+                  >
+                    断开蓝牙
+                  </button>
+                </div>
+
+                <ul className="bullet-list">
+                  {bluetoothChecklist.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+
+                <div className="doc-link-row">
+                  <a
+                    className="doc-link"
+                    href="https://consumer.huawei.com/lk/support/content/en-us15827504/"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    华为官方心率广播说明
+                  </a>
+                  <a
+                    className="doc-link"
+                    href="https://developer.huawei.com/consumer/en/doc/distribution/service/health-kit-overview-0000001077085579"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    华为 Health Kit
+                  </a>
+                  <a
+                    className="doc-link"
+                    href="https://developer.huawei.com/consumer/en/doc/distribution/service/wear-engine-introduction-0000001051006053"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Huawei Wear Engine
+                  </a>
                 </div>
               </section>
 
@@ -311,11 +841,12 @@ function App() {
                   <div>
                     <p className="section-title">上传真实截图</p>
                     <p className="section-subtitle">
-                      先接睡眠、心率、压力三类截图，比赛时比空讲更有说服力。
+                      睡眠、心率、压力三类截图依然保留。这是比赛和评审时最稳妥的真实性证明。
                     </p>
                   </div>
                   <div className="chip">{screenshotCount}/3 已上传</div>
                 </div>
+
                 <div className="upload-grid">
                   {(
                     [
@@ -346,7 +877,7 @@ function App() {
                   <div>
                     <p className="section-title">录入今天的关键指标</p>
                     <p className="section-subtitle">
-                      比赛版先走人工桥接，产品逻辑已经是完整闭环。
+                      比赛版先走人工桥接，产品逻辑保持真实闭环，不用假装“自动同步”已经完成。
                     </p>
                   </div>
                   <button type="button" className="button-primary" onClick={applyCustomMode}>
@@ -527,10 +1058,18 @@ function App() {
                 <h3>{evaluation.nextActionTitle}</h3>
                 <p>{evaluation.nextActionDetail}</p>
                 <div className="hero-actions">
-                  <button type="button" className="button-primary" onClick={() => setView("support")}>
+                  <button
+                    type="button"
+                    className="button-primary"
+                    onClick={() => setView("support")}
+                  >
                     立即恢复
                   </button>
-                  <button type="button" className="button-secondary" onClick={() => setView("trends")}>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => setView("trends")}
+                  >
                     查看趋势
                   </button>
                 </div>
@@ -574,15 +1113,27 @@ function App() {
                 </blockquote>
                 <p className="support-result">{supportResult}</p>
                 <div className="feedback-row">
-                  <button type="button" onClick={() => setSupportResult("反馈已记录：有好一些。下一步保持低强度节奏。")}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSupportResult("反馈已记录：有好一些。下一步保持低强度节奏。")
+                    }
                   >
                     好一些
                   </button>
-                  <button type="button" onClick={() => setSupportResult("反馈已记录：变化不大。建议再做一次 3 分钟离屏恢复。")}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSupportResult("反馈已记录：变化不大。建议再做一次 3 分钟离屏恢复。")
+                    }
                   >
                     没变化
                   </button>
-                  <button type="button" onClick={() => setSupportResult("反馈已记录：更差。请进入安全边界页面，不建议继续普通安抚。")}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSupportResult("反馈已记录：更差。请进入安全边界页面，不建议继续普通安抚。")
+                    }
                   >
                     更差
                   </button>
@@ -610,7 +1161,7 @@ function App() {
                 <p className="section-title">本周洞察</p>
                 <h3>{buildInsight(activeHistory)}</h3>
                 <p>
-                  注：比赛版先用截图和手工桥接保证真实性，后续 iOS 版本再把健康数据自动同步到服务端。
+                  比赛版先用截图和手工桥接保证真实性；如果要做动作联动或系统级同步，下一阶段再上原生桥。
                 </p>
               </section>
             </div>
@@ -692,31 +1243,31 @@ function TrendChart({ history }: { history: TrendPoint[] }) {
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="趋势图">
         <defs>
           <linearGradient id="stressLine" x1="0%" x2="100%" y1="0%" y2="0%">
-            <stop offset="0%" stopColor="#f59e0b" />
-            <stop offset="100%" stopColor="#fb7185" />
+            <stop offset="0%" stopColor="#f2be7c" />
+            <stop offset="100%" stopColor="#f49ca8" />
           </linearGradient>
           <linearGradient id="recoveryLine" x1="0%" x2="100%" y1="0%" y2="0%">
-            <stop offset="0%" stopColor="#38bdf8" />
-            <stop offset="100%" stopColor="#14b8a6" />
+            <stop offset="0%" stopColor="#73c9d1" />
+            <stop offset="100%" stopColor="#59c6c3" />
           </linearGradient>
         </defs>
         <polyline
           fill="none"
-          stroke="url(#recoveryLine)"
-          strokeWidth="4"
           points={buildPoints(
             history.map((point) => point.recoveryScore),
             100,
           )}
+          stroke="url(#recoveryLine)"
+          strokeWidth="4"
         />
         <polyline
           fill="none"
-          stroke="url(#stressLine)"
-          strokeWidth="4"
           points={buildPoints(
             history.map((point) => point.stressLevel),
             100,
           )}
+          stroke="url(#stressLine)"
+          strokeWidth="4"
         />
         {history.map((point, index) => {
           const x = padding + (index * (width - padding * 2)) / (history.length - 1);
@@ -727,8 +1278,8 @@ function TrendChart({ history }: { history: TrendPoint[] }) {
 
           return (
             <g key={point.label}>
-              <circle cx={x} cy={recoveryY} fill="#0f766e" r="5" />
-              <circle cx={x} cy={stressY} fill="#fb7185" r="5" />
+              <circle cx={x} cy={recoveryY} fill="#4fbab8" r="5" />
+              <circle cx={x} cy={stressY} fill="#f2a0ae" r="5" />
               <text x={x} y={height - 6} textAnchor="middle">
                 {point.label}
               </text>
