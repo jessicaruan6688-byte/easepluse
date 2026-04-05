@@ -1,4 +1,5 @@
 import { ChangeEvent, type CSSProperties, useEffect, useRef, useState } from "react";
+import { AuthGate } from "./components/AuthGate";
 import {
   beaconRooms,
   buildBeaconGuardrail,
@@ -18,6 +19,23 @@ import {
   type SymptomKey,
   type TrendPoint,
 } from "./lib/easepulse";
+import {
+  clearSessionToken,
+  fetchSession,
+  loginAccount,
+  logoutAccount,
+  readStoredSessionToken,
+  readVerificationLink,
+  registerAccount,
+  resendVerificationCode,
+  storeSessionToken,
+  verifyEmailCode,
+  type DeliveryMode,
+  type LoginPayload,
+  type RegisterPayload,
+  type SessionUser,
+  type VerificationPayload,
+} from "./lib/auth-client";
 
 type ViewKey =
   | "overview"
@@ -32,6 +50,7 @@ type ViewKey =
 type UploadMap = Record<"sleep" | "heart" | "stress", string | null>;
 type BluetoothState = "idle" | "connecting" | "connected" | "unsupported" | "error";
 type LiveModeKey = "rest" | "focus" | "release";
+type AuthScreen = "register" | "login" | "verify";
 
 type QuickLink = {
   badge: string;
@@ -331,6 +350,16 @@ function getBluetoothLabel(state: BluetoothState) {
 }
 
 function App() {
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [authScreen, setAuthScreen] = useState<AuthScreen>("register");
+  const [authInfo, setAuthInfo] = useState("先注册，再进入真正的 App 流程。");
+  const [authError, setAuthError] = useState("");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode | null>(null);
+  const [previewCode, setPreviewCode] = useState<string | null>(null);
+  const [prefilledVerificationCode, setPrefilledVerificationCode] = useState("");
   const [view, setView] = useState<ViewKey>("overview");
   const [scenarioId, setScenarioId] = useState<string>(scenarios[0].id);
   const [customSnapshot, setCustomSnapshot] = useState<Snapshot>(() =>
@@ -361,6 +390,36 @@ function App() {
   const deviceRef = useRef<any>(null);
   const characteristicRef = useRef<any>(null);
   const simulationStartedAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const verificationLink = readVerificationLink();
+    if (verificationLink) {
+      setAuthScreen("verify");
+      setPendingEmail(verificationLink.email);
+      setPrefilledVerificationCode(verificationLink.code);
+      setAuthInfo("检测到邮箱验证链接，请完成验证码确认。");
+    }
+
+    const token = readStoredSessionToken();
+    if (!token) {
+      setSessionReady(true);
+      return;
+    }
+
+    fetchSession(token)
+      .then((result) => {
+        setSessionUser(result.user);
+        setAuthInfo("欢迎回来。");
+        setAuthError("");
+      })
+      .catch(() => {
+        clearSessionToken();
+        setSessionUser(null);
+      })
+      .finally(() => {
+        setSessionReady(true);
+      });
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(storageKey, JSON.stringify(customSnapshot));
@@ -696,6 +755,132 @@ function App() {
     setBeaconAction(`已进入「${room.title}」，系统只开放预设支持和恢复动作，不开放高风险围观。`);
   }
 
+  async function handleRegister(payload: RegisterPayload) {
+    setAuthError("");
+    const result = await registerAccount(payload);
+    setPendingEmail(result.email);
+    setDeliveryMode(result.deliveryMode);
+    setPreviewCode(result.previewCode);
+    setAuthScreen("verify");
+    setAuthInfo(result.message);
+  }
+
+  async function handleVerify(payload: VerificationPayload) {
+    setAuthError("");
+    const result = await verifyEmailCode(payload);
+    storeSessionToken(result.token);
+    setSessionUser(result.user);
+    setPreviewCode(null);
+    setDeliveryMode(null);
+    setPrefilledVerificationCode("");
+    setAuthInfo("邮箱已验证，已进入应用工作台。");
+
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }
+
+  async function handleLogin(payload: LoginPayload) {
+    setAuthError("");
+
+    try {
+      const result = await loginAccount(payload);
+      storeSessionToken(result.token);
+      setSessionUser(result.user);
+      setAuthInfo("登录成功。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "登录失败。";
+      if (message.includes("没有验证")) {
+        setPendingEmail(payload.email);
+        setAuthScreen("verify");
+        setAuthInfo("这个账号还没有完成邮箱验证，请先输入验证码。");
+      }
+      throw error;
+    }
+  }
+
+  async function handleResend(email: string) {
+    setAuthError("");
+    const result = await resendVerificationCode(email);
+    setPendingEmail(result.email);
+    setDeliveryMode(result.deliveryMode);
+    setPreviewCode(result.previewCode);
+    setAuthInfo(result.message);
+  }
+
+  async function handleLogout() {
+    const token = readStoredSessionToken();
+    if (token) {
+      await logoutAccount(token).catch(() => undefined);
+    }
+
+    clearSessionToken();
+    setSessionUser(null);
+    setAuthScreen("login");
+    setPendingEmail("");
+    setDeliveryMode(null);
+    setPreviewCode(null);
+    setAuthInfo("你已经退出账号。");
+  }
+
+  const welcomeName =
+    sessionUser?.profile.preferredName || sessionUser?.profile.fullName || "你";
+
+  if (!sessionReady || !sessionUser) {
+    return (
+      <AuthGate
+        defaultScreen={authScreen}
+        deliveryMode={deliveryMode}
+        errorMessage={authError}
+        infoMessage={authInfo}
+        initialVerificationCode={prefilledVerificationCode}
+        isLoading={!sessionReady || authSubmitting}
+        onLogin={async (payload) => {
+          setAuthSubmitting(true);
+          try {
+            await handleLogin(payload);
+          } catch (error) {
+            setAuthError(error instanceof Error ? error.message : "登录失败。");
+          } finally {
+            setAuthSubmitting(false);
+          }
+        }}
+        onRegister={async (payload) => {
+          setAuthSubmitting(true);
+          try {
+            await handleRegister(payload);
+          } catch (error) {
+            setAuthError(error instanceof Error ? error.message : "注册失败。");
+          } finally {
+            setAuthSubmitting(false);
+          }
+        }}
+        onResend={async (email) => {
+          setAuthSubmitting(true);
+          try {
+            await handleResend(email);
+          } catch (error) {
+            setAuthError(error instanceof Error ? error.message : "重新发送失败。");
+          } finally {
+            setAuthSubmitting(false);
+          }
+        }}
+        onVerify={async (payload) => {
+          setAuthSubmitting(true);
+          try {
+            await handleVerify(payload);
+          } catch (error) {
+            setAuthError(error instanceof Error ? error.message : "验证失败。");
+          } finally {
+            setAuthSubmitting(false);
+          }
+        }}
+        pendingEmail={pendingEmail}
+        previewCode={previewCode}
+      />
+    );
+  }
+
   return (
     <div className={`app-shell mode-${liveMode.key}`}>
       <div className="ambient ambient-left" />
@@ -704,10 +889,9 @@ function App() {
       <header className="topbar">
         <div className="topbar-copy">
           <p className="eyebrow">EasePulse 息伴</p>
-          <h1>把透支感，变成能被回应的恢复网络。</h1>
+          <h1>{`${welcomeName}，今天先把恢复节奏拉回来。`}</h1>
           <p className="topbar-lede">
-            这版在原有数据桥接和恢复闭环上，补上了关怀圈、匿名支持和增长路径：
-            先让用户自己看懂状态，再把可信的人拉进来，最后用匿名支持房间承接那些一时不想打扰熟人的时刻。
+            {`${sessionUser.email} 已完成验证。你的身份信息、设备选择和恢复目标已经进入这套工作台，现在看到的不再只是单页展示，而是可以持续使用的 App 流程。`}
           </p>
         </div>
 
@@ -722,6 +906,10 @@ function App() {
             <strong>easepluse.zeabur.app</strong>
           </a>
           <div className="status-pill">
+            <span>当前账号</span>
+            <strong>{sessionUser.profile.fullName}</strong>
+          </div>
+          <div className="status-pill">
             <span>当前模式</span>
             <strong>{liveMode.label}</strong>
           </div>
@@ -733,6 +921,10 @@ function App() {
                 : getBluetoothLabel(bluetoothState)}
             </strong>
           </div>
+          <button className="status-pill status-pill-button" type="button" onClick={() => void handleLogout()}>
+            <span>会话操作</span>
+            <strong>退出登录</strong>
+          </button>
         </div>
       </header>
 
@@ -795,6 +987,46 @@ function App() {
         <section className="content">
           {view === "overview" && (
             <div className="page-grid">
+              <section className="card account-hero-card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">账号已接入</p>
+                    <p className="section-subtitle">
+                      现在已经不是“只看一屏”的展示稿了。你的邮箱、身份信息和设备选择会被带进后续恢复、关怀圈和匿名支持链路。
+                    </p>
+                  </div>
+                  <div className="chip chip-solid">邮箱已验证</div>
+                </div>
+
+                <div className="account-summary-grid">
+                  <article className="account-summary-card">
+                    <span>邮箱</span>
+                    <strong>{sessionUser.email}</strong>
+                  </article>
+                  <article className="account-summary-card">
+                    <span>角色</span>
+                    <strong>{sessionUser.profile.role || "待补充"}</strong>
+                  </article>
+                  <article className="account-summary-card">
+                    <span>城市</span>
+                    <strong>{sessionUser.profile.city || "待补充"}</strong>
+                  </article>
+                  <article className="account-summary-card">
+                    <span>设备</span>
+                    <strong>{sessionUser.profile.deviceModel || "Huawei Band 9 + iPhone"}</strong>
+                  </article>
+                </div>
+
+                <div className="hero-actions">
+                  <button type="button" className="button-primary" onClick={() => setView("dashboard")}>
+                    进入今日状态
+                  </button>
+                  <button type="button" className="button-secondary" onClick={() => setView("care")}>
+                    打开关怀圈
+                  </button>
+                </div>
+              </section>
+
               <section className="card hero-card pitch-card-shell">
                 <PitchDemo
                   heartRate={demoHeartRate}
