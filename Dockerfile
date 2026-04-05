@@ -14,7 +14,7 @@ WORKDIR /app
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.mjs ./server.mjs
-COPY --from=builder /app/data ./data
+RUN mkdir -p /app/data
 
 ENV PORT=8080
 EXPOSE 8080
