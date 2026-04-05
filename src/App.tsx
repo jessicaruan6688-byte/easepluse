@@ -964,6 +964,33 @@ function App() {
   }, [locale]);
 
   useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    document.documentElement.lang =
+      locale === "en" ? "en" : locale === "es" ? "es" : "zh-CN";
+    document.title =
+      locale === "en"
+        ? "EasePulse | Recovery OS"
+        : locale === "es"
+          ? "EasePulse | Recovery OS"
+          : "EasePulse | 息伴";
+
+    const description =
+      locale === "en"
+        ? "EasePulse is a recovery-first assistant for high-pressure adults, designed to work with Huawei, Xiaomi, Apple Watch, Garmin, Fitbit, and other wearables."
+        : locale === "es"
+          ? "EasePulse es un asistente centrado en la recuperación para personas bajo alta presión, pensado para Huawei, Xiaomi, Apple Watch, Garmin, Fitbit y otros wearables."
+          : "EasePulse 息伴：面向高压成年人的恢复优先助手，可配合华为、小米、Apple Watch、Garmin、Fitbit 等可穿戴设备使用。";
+
+    const meta = document.querySelector('meta[name="description"]');
+    if (meta) {
+      meta.setAttribute("content", description);
+    }
+  }, [locale]);
+
+  useEffect(() => {
     window.localStorage.setItem(uploadStorageKey, JSON.stringify(uploads));
   }, [uploads]);
 
