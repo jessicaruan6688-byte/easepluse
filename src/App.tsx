@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, type CSSProperties, useEffect, useRef, useState } from "react";
 import {
   buildInsight,
   defaultCustomSnapshot,
@@ -138,6 +138,71 @@ const bluetoothChecklist = [
   "网页现在能真实联动的是心率广播；甩手动作的 IMU 事件需要原生桥接，不应在网页里假装已打通。",
 ];
 
+const demoSleepHours = 5.3;
+
+const judgeHighlights = [
+  {
+    title: "Sleep Debt",
+    body: "低睡眠被保留成稳定基线，让风险上升看起来更可信，不像无来由地跳红。",
+  },
+  {
+    title: "Stress Playback",
+    body: "点击后，心率、风险分和情绪球同步推进，评委能在几秒内看懂剧情。",
+  },
+  {
+    title: "Gentle Support",
+    body: "超过阈值后不是警报轰炸，而是温柔但明确地给出一个恢复动作。",
+  },
+];
+
+const demoTimelineCheckpoints = [
+  { label: "08:10", heartRate: 72, risk: 28 },
+  { label: "09:05", heartRate: 86, risk: 44 },
+  { label: "09:42", heartRate: 98, risk: 63 },
+  { label: "10:06", heartRate: 111, risk: 78 },
+  { label: "10:18", heartRate: 118, risk: 88 },
+];
+
+function getSimulationStage(progress: number, riskScore: number) {
+  if (progress < 0.2) {
+    return {
+      label: "Steady",
+      detail: "昨晚睡眠偏少，但系统先保持观察，不把用户直接吓进危险区。",
+    };
+  }
+
+  if (progress < 0.55) {
+    return {
+      label: "Building",
+      detail: "心率开始上扬，压力在堆积，界面逐步把注意力往恢复上拉。",
+    };
+  }
+
+  if (riskScore < 70) {
+    return {
+      label: "Needs Care",
+      detail: "情绪球进入橙色区，系统开始准备更明确的支持提示。",
+    };
+  }
+
+  return {
+    label: "Support Ready",
+    detail: "风险分已越过 70，系统不让用户继续硬撑，而是立刻给出恢复动作。",
+  };
+}
+
+function getOrbTone(riskScore: number) {
+  if (riskScore < 45) {
+    return "calm";
+  }
+
+  if (riskScore < 70) {
+    return "warn";
+  }
+
+  return "alert";
+}
+
 function readStoredValue<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") {
     return fallback;
@@ -235,8 +300,11 @@ function App() {
   const [connectedDeviceName, setConnectedDeviceName] = useState("");
   const [liveHeartRate, setLiveHeartRate] = useState<number | null>(null);
   const [lastSignalAt, setLastSignalAt] = useState("");
+  const [isSimulatingStress, setIsSimulatingStress] = useState(false);
+  const [simulationProgress, setSimulationProgress] = useState(0);
   const deviceRef = useRef<any>(null);
   const characteristicRef = useRef<any>(null);
+  const simulationStartedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     window.localStorage.setItem(storageKey, JSON.stringify(customSnapshot));
@@ -265,6 +333,28 @@ function App() {
 
     return () => window.clearInterval(interval);
   }, [isBreathing, timer]);
+
+  useEffect(() => {
+    if (!isSimulatingStress) {
+      simulationStartedAtRef.current = null;
+      return;
+    }
+
+    simulationStartedAtRef.current = performance.now();
+
+    const interval = window.setInterval(() => {
+      const startedAt = simulationStartedAtRef.current ?? performance.now();
+      const nextProgress = Math.min((performance.now() - startedAt) / 18000, 1);
+      setSimulationProgress(nextProgress);
+
+      if (nextProgress >= 1) {
+        window.clearInterval(interval);
+        setIsSimulatingStress(false);
+      }
+    }, 120);
+
+    return () => window.clearInterval(interval);
+  }, [isSimulatingStress]);
 
   useEffect(() => {
     const bluetoothApi =
@@ -329,6 +419,10 @@ function App() {
     : activeScenario.history;
   const screenshotCount = Object.values(uploads).filter(Boolean).length;
   const liveMode = getLiveMode(bluetoothState, liveHeartRate, isCustomMode);
+  const demoHeartRate = Math.round(72 + simulationProgress * 46);
+  const demoRiskScore = Math.round(28 + simulationProgress * 60);
+  const demoStage = getSimulationStage(simulationProgress, demoRiskScore);
+  const demoInterventionVisible = demoRiskScore >= 70;
 
   function updateSnapshot<K extends keyof Snapshot>(key: K, value: Snapshot[K]) {
     setCustomSnapshot((current) => ({
@@ -381,6 +475,18 @@ function App() {
     setTimer(90);
     setIsBreathing(true);
     setSupportResult("正在进行 90 秒恢复呼吸，先把注意力从任务里抽离出来。");
+  }
+
+  function startStressSimulation() {
+    simulationStartedAtRef.current = null;
+    setSimulationProgress(0);
+    setIsSimulatingStress(true);
+  }
+
+  function resetStressSimulation() {
+    simulationStartedAtRef.current = null;
+    setIsSimulatingStress(false);
+    setSimulationProgress(0);
   }
 
   function applyCustomMode() {
@@ -608,40 +714,24 @@ function App() {
         <section className="content">
           {view === "overview" && (
             <div className="page-grid">
-              <section className="card hero-card hero-grid">
-                <div>
-                  <p className="eyebrow">Calm Recovery Companion</p>
-                  <h2>先看清状态，再给一个真的能执行的动作。</h2>
-                  <p className="lede">
-                    息伴不再只是一层展示卡片。首页现在有真实线上入口、竞品参考、官方文档和设备桥接说明；
-                    数据页则能在支持的浏览器里尝试连接心率广播，让网页自己跟着实时状态变化。
-                  </p>
-                  <div className="hero-actions">
-                    <button
-                      type="button"
-                      className="button-primary"
-                      onClick={() => setView("connect")}
-                    >
-                      接入我的设备
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      onClick={() => setView("dashboard")}
-                    >
-                      查看今日状态
-                    </button>
-                  </div>
-                </div>
-
-                <div className="hero-side">
-                  <div className="hero-orb" aria-hidden="true" />
-                  <div className="hero-summary">
-                    <span>现在可用</span>
-                    <strong>Zeabur 在线站点 + GitHub 自动更新</strong>
-                    <p>{liveMode.detail}</p>
-                  </div>
-                </div>
+              <section className="card hero-card pitch-card-shell">
+                <PitchDemo
+                  heartRate={demoHeartRate}
+                  highlights={judgeHighlights}
+                  interventionVisible={demoInterventionVisible}
+                  isSimulating={isSimulatingStress}
+                  onOpenConnect={() => setView("connect")}
+                  onOpenSupport={() => {
+                    startBreathing();
+                    setView("support");
+                  }}
+                  onReset={resetStressSimulation}
+                  onSimulate={startStressSimulation}
+                  progress={simulationProgress}
+                  riskScore={demoRiskScore}
+                  sleepHours={demoSleepHours}
+                  stage={demoStage}
+                />
               </section>
 
               <section className="card">
@@ -1200,6 +1290,173 @@ function App() {
           )}
         </section>
       </main>
+    </div>
+  );
+}
+
+function PitchDemo({
+  heartRate,
+  highlights,
+  interventionVisible,
+  isSimulating,
+  onOpenConnect,
+  onOpenSupport,
+  onReset,
+  onSimulate,
+  progress,
+  riskScore,
+  sleepHours,
+  stage,
+}: {
+  heartRate: number;
+  highlights: Array<{ title: string; body: string }>;
+  interventionVisible: boolean;
+  isSimulating: boolean;
+  onOpenConnect: () => void;
+  onOpenSupport: () => void;
+  onReset: () => void;
+  onSimulate: () => void;
+  progress: number;
+  riskScore: number;
+  sleepHours: number;
+  stage: { label: string; detail: string };
+}) {
+  const orbTone = getOrbTone(riskScore);
+  const gaugeStyle = {
+    "--gauge-angle": `${Math.max(18, riskScore * 3.6)}deg`,
+  } as CSSProperties;
+
+  return (
+    <div className="pitch-layout">
+      <div className="pitch-copy">
+        <p className="eyebrow">iPhone-First Demo</p>
+        <h2>用一段很短的模拟，让评委看见今天为什么需要被温柔接住。</h2>
+        <p className="lede">
+          这一屏不去卖复杂技术，而是把情绪风险的节奏讲清楚：先是睡眠不足与心率上扬，再是风险跨线，最后是 AI 给出一个不会增加压力的恢复动作。
+        </p>
+
+        <div className="hero-actions">
+          <button
+            type="button"
+            className="button-primary"
+            disabled={isSimulating}
+            onClick={onSimulate}
+          >
+            {isSimulating ? "Simulating..." : "Simulate Stress"}
+          </button>
+          <button type="button" className="button-secondary" onClick={onReset}>
+            Reset Demo
+          </button>
+          <button type="button" className="button-secondary" onClick={onOpenConnect}>
+            Open Device Bridge
+          </button>
+        </div>
+
+        <div className="pitch-chip-row">
+          <span className="chip chip-solid">Demo Mode · Simulated Data</span>
+          <span className="chip">Not Medical Advice</span>
+        </div>
+
+        <div className="pitch-points">
+          {highlights.map((item) => (
+            <article key={item.title} className="pitch-point-card">
+              <strong>{item.title}</strong>
+              <p>{item.body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div className="phone-stage">
+        <div className="phone-shell">
+          <div className="phone-notch" />
+          <div className="phone-screen">
+            <div className="phone-topline">
+              <span>EasePulse Demo</span>
+              <span>{stage.label}</span>
+            </div>
+
+            <div className="phone-score">
+              <div className="phone-score-copy">
+                <span>Emotional Risk Score</span>
+                <strong>{riskScore}</strong>
+                <p>{stage.detail}</p>
+              </div>
+              <div className="emotion-orb-wrap">
+                <div className={`emotion-orb orb-${orbTone}`} aria-hidden="true" />
+              </div>
+            </div>
+
+            <div className="gauge-panel">
+              <div className="gauge-ring" style={gaugeStyle}>
+                <div className="gauge-core">
+                  <strong>{riskScore}</strong>
+                  <span>/100</span>
+                </div>
+              </div>
+
+              <div className="gauge-side">
+                <div className="mini-stat-card">
+                  <span>Heart Rate</span>
+                  <strong>{heartRate} bpm</strong>
+                  <small>rising in demo playback</small>
+                </div>
+                <div className="mini-stat-card">
+                  <span>Sleep</span>
+                  <strong>{sleepHours} h</strong>
+                  <small>low baseline kept constant</small>
+                </div>
+              </div>
+            </div>
+
+            <div className="timeline-demo-card">
+              <div className="timeline-demo-header">
+                <span>Stress Timeline</span>
+                <small>{Math.round(progress * 100)}%</small>
+              </div>
+              <div className="timeline-bars">
+                {demoTimelineCheckpoints.map((point, index) => {
+                  const activated = progress >= index / (demoTimelineCheckpoints.length - 1);
+                  return (
+                    <div
+                      key={point.label}
+                      className={activated ? "timeline-bar active" : "timeline-bar"}
+                    >
+                      <div
+                        className="timeline-bar-fill"
+                        style={{ height: `${Math.max(28, point.risk)}%` }}
+                      />
+                      <strong>{point.heartRate}</strong>
+                      <span>{point.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="phone-recovery-card">
+              <div className="breathing-orbit active">
+                <div className="breathing-orbit-core" />
+              </div>
+              <div>
+                <span>Breathing 4-4-4</span>
+                <p>Inhale 4s · Hold 4s · Exhale 4s</p>
+              </div>
+            </div>
+
+            {interventionVisible ? (
+              <div className="intervention-sheet">
+                <span>AI Intervention</span>
+                <strong>You don&apos;t have to push through this alone.</strong>
+                <p>Your load is rising fast. Pause for one minute and begin guided breathing.</p>
+                <button type="button" className="button-primary" onClick={onOpenSupport}>
+                  Begin 4-4-4 Breathing
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
