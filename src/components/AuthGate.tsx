@@ -115,16 +115,16 @@ export function AuthGate({
 
       <section className="auth-marketing">
         <p className="eyebrow">EasePulse 息伴</p>
-        <h1>先注册，再进入真正的 App 流程。</h1>
+        <h1>注册后，把你的恢复画像和支持关系保存下来。</h1>
         <p className="auth-lede">
-          这一版不再只是展示页。账号注册完成后，你会进入带邮箱验证、个人资料、恢复工作台和关怀圈入口的真实应用链路。
+          首页已经先开放给你看项目本体。这里的注册登录只负责保存邮箱验证、个人资料、恢复工作台和关怀圈关系，不再挡住第一屏。
         </p>
 
         <div className="auth-feature-list">
           <article className="auth-feature-card">
             <span>01</span>
-            <strong>邮箱注册</strong>
-            <p>用邮箱和密码创建账号，避免继续停留在单纯展示页。</p>
+            <strong>保存恢复画像</strong>
+            <p>把你的邮箱、设备和恢复目标写进账号，后续才能形成长期工作台。</p>
           </article>
           <article className="auth-feature-card">
             <span>02</span>
@@ -133,8 +133,8 @@ export function AuthGate({
           </article>
           <article className="auth-feature-card">
             <span>03</span>
-            <strong>个人信息</strong>
-            <p>姓名、城市、角色、设备和恢复目标会被带进登录后的工作台。</p>
+            <strong>关怀关系</strong>
+            <p>姓名、城市、角色、设备和恢复目标会被带进登录后的工作台与关怀圈。</p>
           </article>
         </div>
       </section>

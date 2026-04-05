@@ -232,6 +232,75 @@ const productLayers = [
   },
 ];
 
+const screenshotEvidence = [
+  {
+    image: "/media/evidence/IMG_7308.PNG",
+    alt: "华为运动健康中的零星小睡截图",
+    source: "华为运动健康",
+    metric: "午间补觉",
+    value: "43 分钟",
+    note: "4 月 1 日 12:20-13:03 的零星小睡，说明恢复开始依赖碎片化补偿。",
+  },
+  {
+    image: "/media/evidence/IMG_7310.PNG",
+    alt: "华为运动健康中的情绪健康压力截图",
+    source: "华为运动健康",
+    metric: "情绪健康压力",
+    value: "52 正常",
+    note: "今日压力均值 52，最新值 10:07，身体已经在提醒你不要继续硬扛。",
+  },
+  {
+    image: "/media/evidence/IMG_7313.PNG",
+    alt: "Apple 健康中的心率截图",
+    source: "Apple 健康",
+    metric: "心率范围",
+    value: "56-126 次/分",
+    note: "白天区间被拉宽，说明输出节奏已经开始不稳定。",
+  },
+  {
+    image: "/media/evidence/IMG_7309.PNG",
+    alt: "华为心脏健康中的日心率截图",
+    source: "华为心脏健康",
+    metric: "最新心率",
+    value: "87 次/分",
+    note: "同一日内心率仍在高位波动，适合和 Apple 健康区间一起做交叉印证。",
+  },
+  {
+    image: "/media/evidence/IMG_7312.PNG",
+    alt: "Apple 健康中的静息能量截图",
+    source: "Apple 健康",
+    metric: "静息能量",
+    value: "1,071 千卡",
+    note: "4 月 5 日周视图总计，说明身体基础消耗一直在跑，恢复窗口却没有同步补上。",
+  },
+  {
+    image: "/media/evidence/IMG_7314.PNG",
+    alt: "华为睡眠评分截图",
+    source: "华为睡眠评分",
+    metric: "晚睡眠评分",
+    value: "今日无数据",
+    note: "夜间连续睡眠没有建立，恢复更像依赖碎片化补偿，这正好能衬托产品的恢复叙事。",
+  },
+];
+
+const supportJourney = [
+  {
+    step: "01",
+    title: "透支被发现",
+    detail: "系统先把睡眠碎片、压力波动、心率区间和能量消耗拼起来，判断你是在靠透支维持输出。",
+  },
+  {
+    step: "02",
+    title: "用户被接住",
+    detail: "EasePulse 不先制造恐慌，而是给一个当下最有效的恢复动作，并解释为什么现在该停一下。",
+  },
+  {
+    step: "03",
+    title: "支持被转交",
+    detail: "如果状态持续恶化，就把线上提醒转成关怀圈留言、电话和线下确认，交给真实支持网络处理。",
+  },
+];
+
 function getSimulationStage(progress: number, riskScore: number) {
   if (progress < 0.2) {
     return {
@@ -353,9 +422,10 @@ function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [authScreen, setAuthScreen] = useState<AuthScreen>("register");
-  const [authInfo, setAuthInfo] = useState("先注册，再进入真正的 App 流程。");
+  const [authInfo, setAuthInfo] = useState("注册后可以保存你的恢复画像、设备偏好和关怀联系人。");
   const [authError, setAuthError] = useState("");
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [showAuthGate, setShowAuthGate] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode | null>(null);
   const [previewCode, setPreviewCode] = useState<string | null>(null);
@@ -395,6 +465,7 @@ function App() {
     const verificationLink = readVerificationLink();
     if (verificationLink) {
       setAuthScreen("verify");
+      setShowAuthGate(true);
       setPendingEmail(verificationLink.email);
       setPrefilledVerificationCode(verificationLink.code);
       setAuthInfo("检测到邮箱验证链接，请完成验证码确认。");
@@ -770,6 +841,7 @@ function App() {
     const result = await verifyEmailCode(payload);
     storeSessionToken(result.token);
     setSessionUser(result.user);
+    setShowAuthGate(false);
     setPreviewCode(null);
     setDeliveryMode(null);
     setPrefilledVerificationCode("");
@@ -787,12 +859,14 @@ function App() {
       const result = await loginAccount(payload);
       storeSessionToken(result.token);
       setSessionUser(result.user);
+      setShowAuthGate(false);
       setAuthInfo("登录成功。");
     } catch (error) {
       const message = error instanceof Error ? error.message : "登录失败。";
       if (message.includes("没有验证")) {
         setPendingEmail(payload.email);
         setAuthScreen("verify");
+        setShowAuthGate(true);
         setAuthInfo("这个账号还没有完成邮箱验证，请先输入验证码。");
       }
       throw error;
@@ -825,61 +899,13 @@ function App() {
 
   const welcomeName =
     sessionUser?.profile.preferredName || sessionUser?.profile.fullName || "你";
-
-  if (!sessionReady || !sessionUser) {
-    return (
-      <AuthGate
-        defaultScreen={authScreen}
-        deliveryMode={deliveryMode}
-        errorMessage={authError}
-        infoMessage={authInfo}
-        initialVerificationCode={prefilledVerificationCode}
-        isLoading={!sessionReady || authSubmitting}
-        onLogin={async (payload) => {
-          setAuthSubmitting(true);
-          try {
-            await handleLogin(payload);
-          } catch (error) {
-            setAuthError(error instanceof Error ? error.message : "登录失败。");
-          } finally {
-            setAuthSubmitting(false);
-          }
-        }}
-        onRegister={async (payload) => {
-          setAuthSubmitting(true);
-          try {
-            await handleRegister(payload);
-          } catch (error) {
-            setAuthError(error instanceof Error ? error.message : "注册失败。");
-          } finally {
-            setAuthSubmitting(false);
-          }
-        }}
-        onResend={async (email) => {
-          setAuthSubmitting(true);
-          try {
-            await handleResend(email);
-          } catch (error) {
-            setAuthError(error instanceof Error ? error.message : "重新发送失败。");
-          } finally {
-            setAuthSubmitting(false);
-          }
-        }}
-        onVerify={async (payload) => {
-          setAuthSubmitting(true);
-          try {
-            await handleVerify(payload);
-          } catch (error) {
-            setAuthError(error instanceof Error ? error.message : "验证失败。");
-          } finally {
-            setAuthSubmitting(false);
-          }
-        }}
-        pendingEmail={pendingEmail}
-        previewCode={previewCode}
-      />
-    );
-  }
+  const heroTitle = sessionUser
+    ? `${welcomeName}，先看今天的恢复节奏，再决定要不要继续硬扛。`
+    : "先让人看见透支，再把人接回真实支持网络。";
+  const heroLede = sessionUser
+    ? `${sessionUser.email} 已接入工作台。现在打开的是项目本体：真实截图证据、设备桥接、恢复动作、关怀圈和匿名支持都已经串成一条链。`
+    : "这一版首页先展示项目本身，不再先挡在注册页。真实截图、压力演示、设备桥接和支持网络都先给你看，账号系统退回到第二层。";
+  const authStatusLabel = sessionUser ? "已登录工作台" : sessionReady ? "访客预览" : "检查会话中";
 
   return (
     <div className={`app-shell mode-${liveMode.key}`}>
@@ -888,11 +914,9 @@ function App() {
 
       <header className="topbar">
         <div className="topbar-copy">
-          <p className="eyebrow">EasePulse 息伴</p>
-          <h1>{`${welcomeName}，今天先把恢复节奏拉回来。`}</h1>
-          <p className="topbar-lede">
-            {`${sessionUser.email} 已完成验证。你的身份信息、设备选择和恢复目标已经进入这套工作台，现在看到的不再只是单页展示，而是可以持续使用的 App 流程。`}
-          </p>
+          <p className="eyebrow">EasePulse 息伴 · Recovery OS</p>
+          <h1>{heroTitle}</h1>
+          <p className="topbar-lede">{heroLede}</p>
         </div>
 
         <div className="status-panel">
@@ -905,9 +929,18 @@ function App() {
             <span>线上站点</span>
             <strong>easepluse.zeabur.app</strong>
           </a>
+          <a
+            className="status-pill status-pill-link"
+            href="https://github.com/jessicaruan6688-byte/easepluse"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <span>GitHub</span>
+            <strong>自动部署源仓库</strong>
+          </a>
           <div className="status-pill">
-            <span>当前账号</span>
-            <strong>{sessionUser.profile.fullName}</strong>
+            <span>访问状态</span>
+            <strong>{authStatusLabel}</strong>
           </div>
           <div className="status-pill">
             <span>当前模式</span>
@@ -921,10 +954,29 @@ function App() {
                 : getBluetoothLabel(bluetoothState)}
             </strong>
           </div>
-          <button className="status-pill status-pill-button" type="button" onClick={() => void handleLogout()}>
-            <span>会话操作</span>
-            <strong>退出登录</strong>
-          </button>
+          {sessionUser ? (
+            <button
+              className="status-pill status-pill-button"
+              type="button"
+              onClick={() => void handleLogout()}
+            >
+              <span>当前账号</span>
+              <strong>{sessionUser.profile.fullName || sessionUser.email}</strong>
+            </button>
+          ) : (
+            <button
+              className="status-pill status-pill-button"
+              type="button"
+              disabled={!sessionReady}
+              onClick={() => {
+                setAuthScreen("register");
+                setShowAuthGate(true);
+              }}
+            >
+              <span>会话操作</span>
+              <strong>{sessionReady ? "注册 / 登录" : "加载中..."}</strong>
+            </button>
+          )}
         </div>
       </header>
 
@@ -987,43 +1039,77 @@ function App() {
         <section className="content">
           {view === "overview" && (
             <div className="page-grid">
-              <section className="card account-hero-card">
-                <div className="split-header">
-                  <div>
-                    <p className="section-title">账号已接入</p>
-                    <p className="section-subtitle">
-                      现在已经不是“只看一屏”的展示稿了。你的邮箱、身份信息和设备选择会被带进后续恢复、关怀圈和匿名支持链路。
-                    </p>
+              <section className="card launch-hero-card">
+                <div className="launch-hero-copy">
+                  <div className="split-header">
+                    <div>
+                      <p className="section-title">Project First</p>
+                      <h2>像 WHOOP 一样讲清恢复，像 Gentler 一样保留温和语气，但把“被接住”做成一条真实链路。</h2>
+                      <p className="section-subtitle">
+                        首页现在先看项目，不先看注册。真实截图、压力演示、设备桥接、关怀圈和匿名支持都直接给你看；账号系统只负责把这些关系长期保存下来。
+                      </p>
+                    </div>
+                    <div className="chip chip-solid">{sessionUser ? "工作台已连接" : "项目预览开放"}</div>
                   </div>
-                  <div className="chip chip-solid">邮箱已验证</div>
+
+                  <div className="hero-actions">
+                    <button type="button" className="button-primary" onClick={() => setView("dashboard")}>
+                      打开今日状态
+                    </button>
+                    <button type="button" className="button-secondary" onClick={() => setView("connect")}>
+                      查看设备桥接
+                    </button>
+                    {sessionUser ? (
+                      <button type="button" className="button-secondary" onClick={() => setView("care")}>
+                        进入关怀圈
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        onClick={() => {
+                          setAuthScreen("register");
+                          setShowAuthGate(true);
+                        }}
+                      >
+                        保存我的画像
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="launch-metric-grid">
+                    <article className="launch-metric-card">
+                      <span>真实证据</span>
+                      <strong>{`${screenshotEvidence.length} 张截图`}</strong>
+                      <p>Apple 健康和华为运动健康一起做证据底板，不靠空泛口号。</p>
+                    </article>
+                    <article className="launch-metric-card">
+                      <span>产品主叙事</span>
+                      <strong>恢复优先</strong>
+                      <p>先解释身体状态，再给恢复动作，最后把人送到可信支持网络里。</p>
+                    </article>
+                    <article className="launch-metric-card">
+                      <span>部署链路</span>
+                      <strong>GitHub → Zeabur → iOS</strong>
+                      <p>网页和 Capacitor iPhone 壳共用同一套前端资源和产品结构。</p>
+                    </article>
+                  </div>
                 </div>
 
-                <div className="account-summary-grid">
-                  <article className="account-summary-card">
-                    <span>邮箱</span>
-                    <strong>{sessionUser.email}</strong>
-                  </article>
-                  <article className="account-summary-card">
-                    <span>角色</span>
-                    <strong>{sessionUser.profile.role || "待补充"}</strong>
-                  </article>
-                  <article className="account-summary-card">
-                    <span>城市</span>
-                    <strong>{sessionUser.profile.city || "待补充"}</strong>
-                  </article>
-                  <article className="account-summary-card">
-                    <span>设备</span>
-                    <strong>{sessionUser.profile.deviceModel || "Huawei Band 9 + iPhone"}</strong>
-                  </article>
-                </div>
-
-                <div className="hero-actions">
-                  <button type="button" className="button-primary" onClick={() => setView("dashboard")}>
-                    进入今日状态
-                  </button>
-                  <button type="button" className="button-secondary" onClick={() => setView("care")}>
-                    打开关怀圈
-                  </button>
+                <div className="launch-hero-gallery">
+                  {screenshotEvidence.slice(0, 3).map((item) => (
+                    <article key={`${item.source}-${item.metric}`} className="launch-shot-card">
+                      <div className="launch-shot-frame">
+                        <img src={item.image} alt={item.alt} loading="lazy" />
+                      </div>
+                      <div className="launch-shot-copy">
+                        <span>{item.source}</span>
+                        <strong>{item.metric}</strong>
+                        <b>{item.value}</b>
+                        <p>{item.note}</p>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </section>
 
@@ -1836,6 +1922,68 @@ function App() {
           )}
         </section>
       </main>
+
+      {showAuthGate && !sessionUser ? (
+        <div className="auth-overlay" role="dialog" aria-modal="true" aria-label="注册和登录">
+          <button
+            type="button"
+            className="auth-overlay-close"
+            onClick={() => setShowAuthGate(false)}
+          >
+            关闭
+          </button>
+          <AuthGate
+            defaultScreen={authScreen}
+            deliveryMode={deliveryMode}
+            errorMessage={authError}
+            infoMessage={authInfo}
+            initialVerificationCode={prefilledVerificationCode}
+            isLoading={!sessionReady || authSubmitting}
+            onLogin={async (payload) => {
+              setAuthSubmitting(true);
+              try {
+                await handleLogin(payload);
+              } catch (error) {
+                setAuthError(error instanceof Error ? error.message : "登录失败。");
+              } finally {
+                setAuthSubmitting(false);
+              }
+            }}
+            onRegister={async (payload) => {
+              setAuthSubmitting(true);
+              try {
+                await handleRegister(payload);
+              } catch (error) {
+                setAuthError(error instanceof Error ? error.message : "注册失败。");
+              } finally {
+                setAuthSubmitting(false);
+              }
+            }}
+            onResend={async (email) => {
+              setAuthSubmitting(true);
+              try {
+                await handleResend(email);
+              } catch (error) {
+                setAuthError(error instanceof Error ? error.message : "重新发送失败。");
+              } finally {
+                setAuthSubmitting(false);
+              }
+            }}
+            onVerify={async (payload) => {
+              setAuthSubmitting(true);
+              try {
+                await handleVerify(payload);
+              } catch (error) {
+                setAuthError(error instanceof Error ? error.message : "验证失败。");
+              } finally {
+                setAuthSubmitting(false);
+              }
+            }}
+            pendingEmail={pendingEmail}
+            previewCode={previewCode}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1876,10 +2024,42 @@ function PitchDemo({
     <div className="pitch-layout">
       <div className="pitch-copy">
         <p className="eyebrow">iPhone-First Demo</p>
-        <h2>先让评委看见透支是怎么被发现、被接住、再被转交给真实支持网络的。</h2>
-        <p className="lede">
-          这一屏不去卖复杂技术，而是把节奏讲清楚：先是睡眠不足与心率上扬，再是风险跨线，随后给出恢复动作，并把用户引向关怀圈而不是继续独自硬扛。
-        </p>
+        <div className="pitch-media-intro">
+          <div className="pitch-media-heading">
+            <p className="section-title">真实截图故事板</p>
+            <h2>先让评委看见透支如何被发现、被接住，再被转交给真实支持网络。</h2>
+            <p className="lede">
+              这一屏不靠口号，直接用你本人的 Apple 健康和华为运动健康截图，把“发现问题”这件事落成证据，再把产品的接力逻辑摆出来。
+            </p>
+          </div>
+          <div className="pitch-storyboard">
+            <div className="pitch-media-board">
+              {screenshotEvidence.map((item) => (
+                <article key={`${item.source}-${item.metric}`} className="evidence-card">
+                  <div className="evidence-image">
+                    <img src={item.image} alt={item.alt} loading="lazy" />
+                  </div>
+                  <div className="evidence-copy">
+                    <span>{item.source}</span>
+                    <strong>{item.metric}</strong>
+                    <b>{item.value}</b>
+                    <p>{item.note}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="journey-board">
+              {supportJourney.map((item) => (
+                <article key={item.step} className="journey-card">
+                  <span>{item.step}</span>
+                  <h3>{item.title}</h3>
+                  <p>{item.detail}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+          <div className="chip">当前首屏已接入真实截图素材，后续可替换成 HealthKit 和设备桥接后的实时卡片</div>
+        </div>
 
         <div className="hero-actions">
           <button
