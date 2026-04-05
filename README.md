@@ -9,6 +9,7 @@
 - 已将 `New project` 中的可运行 Web MVP 合并到正式目录
 - 当前是基于 Vite + React + TypeScript 的前端演示版
 - 保留了 `docs/`、`data/`、`scripts/`、`tests/` 作为后续扩展目录
+- 已接入 Zeabur GitHub 自动部署链路
 
 ## 产品范围
 
