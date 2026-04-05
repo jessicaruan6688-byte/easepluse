@@ -40,6 +40,7 @@ import {
 
 type ViewKey =
   | "overview"
+  | "story"
   | "connect"
   | "dashboard"
   | "support"
@@ -68,6 +69,16 @@ type ReferenceLink = {
   href: string;
 };
 
+type LifestyleScene = {
+  id: string;
+  title: string;
+  body: string;
+  image: string;
+  credit: string;
+  creditHref: string;
+  targetView: ViewKey;
+};
+
 const storageKey = "easepulse-custom-snapshot";
 const uploadStorageKey = "easepulse-uploads";
 const localeStorageKey = "easepulse-locale";
@@ -76,6 +87,7 @@ function getNavItems(locale: Locale): Array<{ key: ViewKey; label: string }> {
   if (locale === "en") {
     return [
       { key: "overview", label: "Overview" },
+      { key: "story", label: "Story" },
       { key: "connect", label: "Bridge" },
       { key: "dashboard", label: "Today" },
       { key: "support", label: "Recovery" },
@@ -89,6 +101,7 @@ function getNavItems(locale: Locale): Array<{ key: ViewKey; label: string }> {
   if (locale === "es") {
     return [
       { key: "overview", label: "Resumen" },
+      { key: "story", label: "Historia" },
       { key: "connect", label: "Conexión" },
       { key: "dashboard", label: "Hoy" },
       { key: "support", label: "Recuperación" },
@@ -101,6 +114,7 @@ function getNavItems(locale: Locale): Array<{ key: ViewKey; label: string }> {
 
   return [
     { key: "overview", label: "概览" },
+    { key: "story", label: "故事页" },
     { key: "connect", label: "数据桥接" },
     { key: "dashboard", label: "今日状态" },
     { key: "support", label: "恢复支持" },
@@ -388,15 +402,15 @@ function getJudgeHighlights(locale: Locale) {
     return [
       {
         title: "Recovery First",
-        body: "Lead with under-recovery before emotional support so judges see that this is not generic chat.",
+        body: "Lead with under-recovery before emotional support.",
       },
       {
         title: "Care Circle Handoff",
-        body: "When the state keeps worsening, the UI naturally pushes the user toward trusted contacts instead of staying inside virtual comfort.",
+        body: "If the state worsens, hand the user to trusted contacts.",
       },
       {
         title: "Beacon Guardrail",
-        body: "The anonymous layer only receives active requests for help. Danger states stay private, so growth and safety can coexist.",
+        body: "Anonymous support stays opt-in. Danger states stay private.",
       },
     ];
   }
@@ -405,15 +419,15 @@ function getJudgeHighlights(locale: Locale) {
     return [
       {
         title: "Recuperación primero",
-        body: "Empieza por la recuperación insuficiente antes que por el apoyo emocional para que el jurado vea que esto no es un chat genérico.",
+        body: "Empieza por la recuperación insuficiente antes del apoyo emocional.",
       },
       {
         title: "Transferencia al círculo de cuidado",
-        body: "Cuando el estado sigue empeorando, la interfaz empuja de forma natural hacia contactos de confianza y no hacia consuelo virtual.",
+        body: "Si el estado empeora, deriva hacia contactos de confianza.",
       },
       {
         title: "Límite del Beacon",
-        body: "La capa anónima solo recibe pedidos activos de ayuda. Los estados de peligro siguen siendo privados para que crecimiento y seguridad convivan.",
+        body: "El apoyo anónimo es opt-in. Los estados de peligro siguen privados.",
       },
     ];
   }
@@ -421,15 +435,15 @@ function getJudgeHighlights(locale: Locale) {
   return [
     {
       title: "Recovery First",
-      body: "先讲恢复不足，再讲情绪支持，让评委理解产品不是普通陪聊。",
+      body: "先讲恢复不足，再进情绪支持。",
     },
     {
       title: "Care Circle Handoff",
-      body: "当状态持续变差，页面会自然把用户推向可信联系人，而不是留在虚拟安慰里。",
+      body: "状态继续变差时，把人交给可信联系人。",
     },
     {
       title: "Beacon Guardrail",
-      body: "匿名世界只接主动求助，不公开危险状态，增长和安全边界一起成立。",
+      body: "匿名层只接受主动求助，危险状态不公开。",
     },
   ];
 }
@@ -695,6 +709,160 @@ function getSupportJourney(locale: Locale) {
     { step: "02", title: "用户被接住", detail: "EasePulse 不先制造恐慌，而是给一个当下最有效的恢复动作，并解释为什么现在该停一下。" },
     { step: "03", title: "支持被转交", detail: "如果状态持续恶化，就把线上提醒转成关怀圈留言、电话和线下确认，交给真实支持网络处理。" },
   ];
+}
+
+function getLifestyleScenes(locale: Locale): LifestyleScene[] {
+  if (locale === "en") {
+    return [
+      {
+        id: "stress-work",
+        title: "Work strain should look real",
+        body: "A realistic scene for deadline pressure, rising heart rate, and the moment the product needs to interrupt the grind.",
+        image: "/media/lifestyle/stress-work.jpg",
+        credit: "Pexels",
+        creditHref: "https://www.pexels.com/photo/stressed-woman-looking-at-a-laptop-4226218/",
+        targetView: "dashboard",
+      },
+      {
+        id: "recovery-breathing",
+        title: "Recovery should feel warm, not clinical",
+        body: "This supports the breathing and reset flow better than a wall of text on the homepage.",
+        image: "/media/lifestyle/recovery-breathing.jpg",
+        credit: "Pexels",
+        creditHref: "https://www.pexels.com/photo/young-woman-sitting-near-sofa-3759657/",
+        targetView: "support",
+      },
+      {
+        id: "late-night-reset",
+        title: "Late-night off-ramp",
+        body: "A softer home scene helps explain the end-of-day shutdown story and why care-circle support matters.",
+        image: "/media/lifestyle/late-night-reset.jpg",
+        credit: "Pexels",
+        creditHref: "https://www.pexels.com/photo/woman-sitting-on-sofa-while-using-a-laptop-7671291/",
+        targetView: "care",
+      },
+    ];
+  }
+
+  if (locale === "es") {
+    return [
+      {
+        id: "stress-work",
+        title: "La tensión laboral debe verse real",
+        body: "Una escena creíble para presión de entrega, pulso al alza y ese punto en el que el producto debe interrumpir la inercia.",
+        image: "/media/lifestyle/stress-work.jpg",
+        credit: "Pexels",
+        creditHref: "https://www.pexels.com/photo/stressed-woman-looking-at-a-laptop-4226218/",
+        targetView: "dashboard",
+      },
+      {
+        id: "recovery-breathing",
+        title: "La recuperación debe sentirse cálida",
+        body: "Esta imagen acompaña mejor la respiración y el reset que otra pantalla llena de texto en la home.",
+        image: "/media/lifestyle/recovery-breathing.jpg",
+        credit: "Pexels",
+        creditHref: "https://www.pexels.com/photo/young-woman-sitting-near-sofa-3759657/",
+        targetView: "support",
+      },
+      {
+        id: "late-night-reset",
+        title: "Salida suave de la noche",
+        body: "La escena doméstica ayuda a explicar el cierre del día y por qué importa el círculo de cuidado.",
+        image: "/media/lifestyle/late-night-reset.jpg",
+        credit: "Pexels",
+        creditHref: "https://www.pexels.com/photo/woman-sitting-on-sofa-while-using-a-laptop-7671291/",
+        targetView: "care",
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "stress-work",
+      title: "高压工作场景要看起来真实",
+      body: "这张图更适合承接截止日期压力、心率上扬，以及产品开始打断硬扛的那一刻。",
+      image: "/media/lifestyle/stress-work.jpg",
+      credit: "Pexels",
+      creditHref: "https://www.pexels.com/photo/stressed-woman-looking-at-a-laptop-4226218/",
+      targetView: "dashboard",
+    },
+    {
+      id: "recovery-breathing",
+      title: "恢复场景要更柔和",
+      body: "这张图比首页堆很多字更适合解释呼吸练习和慢下来的感觉。",
+      image: "/media/lifestyle/recovery-breathing.jpg",
+      credit: "Pexels",
+      creditHref: "https://www.pexels.com/photo/young-woman-sitting-near-sofa-3759657/",
+      targetView: "support",
+    },
+    {
+      id: "late-night-reset",
+      title: "深夜下线要有生活感",
+      body: "更像真实居家状态，适合讲晚间收工、被接住和关怀圈的产品故事。",
+      image: "/media/lifestyle/late-night-reset.jpg",
+      credit: "Pexels",
+      creditHref: "https://www.pexels.com/photo/woman-sitting-on-sofa-while-using-a-laptop-7671291/",
+      targetView: "care",
+    },
+  ];
+}
+
+function getStoryDrilldowns(locale: Locale): Array<{
+  title: string;
+  body: string;
+  view: ViewKey;
+}> {
+  if (locale === "en") {
+    return [
+      { title: "Open Story Deck", body: "Screenshots, references, and links live there.", view: "story" },
+      { title: "See Device Bridge", body: "Open wearable details only when needed.", view: "connect" },
+      { title: "Open Today's State", body: "Jump straight into the recovery dashboard.", view: "dashboard" },
+      { title: "Open Care Circle", body: "Open the human-support layer as a next step.", view: "care" },
+    ];
+  }
+
+  if (locale === "es") {
+    return [
+      { title: "Abrir Story Deck", body: "Ahí viven capturas, referencias y enlaces.", view: "story" },
+      { title: "Ver puente de dispositivos", body: "Abre los detalles wearable solo cuando haga falta.", view: "connect" },
+      { title: "Abrir estado de hoy", body: "Entra directo al dashboard de recuperación.", view: "dashboard" },
+      { title: "Abrir círculo de cuidado", body: "Abre la capa humana como siguiente paso.", view: "care" },
+    ];
+  }
+
+  return [
+    { title: "打开 Story 二级页", body: "截图、竞品和真实链接都在里面。", view: "story" },
+    { title: "查看设备桥接", body: "设备桥接细节按需打开。", view: "connect" },
+    { title: "打开今日状态", body: "直接进入恢复仪表盘。", view: "dashboard" },
+    { title: "进入关怀圈", body: "把社交支持层放到下一步。", view: "care" },
+  ];
+}
+
+function getScenarioTags(locale: Locale): Record<string, string> {
+  if (locale === "en") {
+    return {
+      "late-nights": "Sleep",
+      "meeting-stress": "Meeting",
+      "overload-watch": "Trend",
+      "safety-escalation": "Safety",
+    };
+  }
+
+  if (locale === "es") {
+    return {
+      "late-nights": "Sueño",
+      "meeting-stress": "Reunión",
+      "overload-watch": "Tendencia",
+      "safety-escalation": "Seguridad",
+    };
+  }
+
+  return {
+    "late-nights": "睡眠不足",
+    "meeting-stress": "会前上扬",
+    "overload-watch": "连续偏离",
+    "safety-escalation": "安全升级",
+  };
 }
 
 function getSimulationStage(progress: number, riskScore: number, locale: Locale) {
@@ -1109,6 +1277,10 @@ function App() {
   const bluetoothChecklist = getBluetoothChecklist(locale);
   const screenshotEvidence = getScreenshotEvidence(locale);
   const supportJourney = getSupportJourney(locale);
+  const lifestyleScenes = getLifestyleScenes(locale);
+  const storyDrilldowns = getStoryDrilldowns(locale);
+  const scenarioTags = getScenarioTags(locale);
+  const featuredScene = lifestyleScenes[0];
   const designNotes = getDesignNotes(locale);
   const judgeHighlights = getJudgeHighlights(locale);
   const activeScenario: Scenario =
@@ -1569,26 +1741,26 @@ function App() {
     sessionUser?.profile.preferredName || sessionUser?.profile.fullName || "你";
   const heroTitle = sessionUser
     ? locale === "en"
-      ? `${welcomeName}, review today's recovery rhythm before deciding whether to keep pushing.`
+      ? `${welcomeName}, review today's recovery state first.`
       : locale === "es"
-        ? `${welcomeName}, revisa primero el ritmo de recuperación de hoy antes de decidir si seguir forzando.`
-        : `${welcomeName}，先看今天的恢复节奏，再决定要不要继续硬扛。`
+        ? `${welcomeName}, revisa primero tu estado de recuperación de hoy.`
+        : `${welcomeName}，先看今天的恢复状态。`
     : locale === "en"
-      ? "Make overload visible first, then hand the user back to real support."
+      ? "Make overload visible, then start recovery."
       : locale === "es"
-        ? "Primero vuelve visible la sobrecarga y luego devuelve a la persona al apoyo real."
-        : "先让人看见透支，再把人接回真实支持网络。";
+        ? "Haz visible la sobrecarga y luego empieza la recuperación."
+        : "先看见透支，再开始恢复。";
   const heroLede = sessionUser
     ? locale === "en"
-      ? `${sessionUser.email} is already connected to the workspace. This page now shows the product itself: evidence shots, device bridge, recovery actions, care circle, and anonymous support in one chain.`
+      ? `${sessionUser.email} is already connected. This page opens straight into the product chain and your data.`
       : locale === "es"
-        ? `${sessionUser.email} ya está conectado al espacio de trabajo. Esta página ya muestra el producto completo: capturas de evidencia, puente de dispositivos, acciones de recuperación, círculo de cuidado y apoyo anónimo en una sola cadena.`
-        : `${sessionUser.email} 已接入工作台。现在打开的是项目本体：真实截图证据、设备桥接、恢复动作、关怀圈和匿名支持都已经串成一条链。`
+        ? `${sessionUser.email} ya está conectado. Esta página abre directo al producto y a tus datos.`
+        : `${sessionUser.email} 已接入。现在直接看产品链路和你的数据。`
     : locale === "en"
-      ? "This homepage now opens to the product instead of blocking behind auth first. Evidence shots, stress demo, wearable bridge, and support network are visible before account creation."
+      ? "The homepage now keeps only the product entry, stress demo, and next-step pages. Sign-up moved to the second layer."
       : locale === "es"
-        ? "Esta home ya abre el producto en vez de bloquear primero con autenticación. Las capturas, el demo de estrés, el puente wearable y la red de apoyo se ven antes de crear cuenta."
-        : "这一版首页先展示项目本身，不再先挡在注册页。真实截图、压力演示、设备桥接和支持网络都先给你看，账号系统退回到第二层。";
+        ? "La home ahora deja solo la entrada al producto, el demo de estrés y las páginas siguientes. El registro pasó a la segunda capa."
+        : "首页现在只保留产品入口、压力演示和下一步页面，注册放到第二层。";
   const authStatusLabel = sessionUser
     ? locale === "en"
       ? "Workspace connected"
@@ -1740,10 +1912,10 @@ function App() {
                 </p>
                 <p className="section-subtitle">
                   {locale === "en"
-                    ? "Scenario switching stays here, but the old contest-demo framing is no longer the visual center."
+                    ? "Keep quick switching here and move the detail into the active scene note."
                     : locale === "es"
-                      ? "El cambio de escenario sigue aquí, pero el encuadre de demo de concurso ya no es el centro visual."
-                      : "这里保留的是场景切换，不再把“比赛 Demo”作为页面主视觉。"}
+                      ? "Mantén aquí el cambio rápido y deja el detalle en la nota del escenario activo."
+                      : "这里保留快速切换，细节放到当前场景说明。"}
                 </p>
               </div>
               <div className="chip">
@@ -1776,9 +1948,14 @@ function App() {
                   }}
                 >
                   <strong>{scenario.name}</strong>
-                  <span>{scenario.subtitle}</span>
+                  <small>{scenarioTags[scenario.id] ?? scenario.name}</small>
                 </button>
               ))}
+            </div>
+
+            <div className="scenario-current-note">
+              <span>{locale === "en" ? "Current scene" : locale === "es" ? "Escena actual" : "当前场景"}</span>
+              <p>{activeScenario.subtitle}</p>
             </div>
           </section>
         </aside>
@@ -1786,24 +1963,24 @@ function App() {
         <section className="content">
           {view === "overview" && (
             <div className="page-grid">
-              <section className="card launch-hero-card">
+              <section className="card launch-hero-card launch-hero-card-compact">
                 <div className="launch-hero-copy">
                   <div className="split-header">
                     <div>
                       <p className="section-title">Project First</p>
                       <h2>
                         {locale === "en"
-                          ? "Explain recovery with WHOOP-level clarity, keep Gentler's soft tone, and turn “being held” into a real chain."
+                          ? "Shorter homepage, clearer product."
                           : locale === "es"
-                            ? "Explica la recuperación con la claridad de WHOOP, conserva el tono suave de Gentler y convierte el “ser sostenida” en una cadena real."
-                            : "像 WHOOP 一样讲清恢复，像 Gentler 一样保留温和语气，但把“被接住”做成一条真实链路。"}
+                            ? "Home más corta, producto más claro."
+                            : "首页更短，产品更清楚。"}
                       </h2>
                       <p className="section-subtitle">
                         {locale === "en"
-                          ? "The homepage now opens to the product before auth. Evidence shots, stress demo, device bridge, care circle, and anonymous support are all visible up front; the account system only preserves those relationships over time."
+                          ? "Long explanation moved to Story. The first screen keeps only entry points, demo motion, and next steps."
                           : locale === "es"
-                            ? "La home ahora abre primero el producto, no el registro. Las capturas reales, el demo de estrés, el puente de dispositivos, el círculo de cuidado y el apoyo anónimo se ven desde el inicio; la cuenta solo guarda esas relaciones a largo plazo."
-                            : "首页现在先看项目，不先看注册。真实截图、压力演示、设备桥接、关怀圈和匿名支持都直接给你看；账号系统只负责把这些关系长期保存下来。"}
+                            ? "La explicación larga pasó a Story. La primera pantalla deja solo entradas, demo y siguientes pasos."
+                            : "长说明去 Story，首屏只保留入口、演示和下一步。"}
                       </p>
                     </div>
                     <div className="chip chip-solid">
@@ -1825,8 +2002,8 @@ function App() {
                     <button type="button" className="button-primary" onClick={() => setView("dashboard")}>
                       {locale === "en" ? "Open today's state" : locale === "es" ? "Abrir estado de hoy" : "打开今日状态"}
                     </button>
-                    <button type="button" className="button-secondary" onClick={() => setView("connect")}>
-                      {locale === "en" ? "Open device bridge" : locale === "es" ? "Abrir puente de dispositivos" : "查看设备桥接"}
+                    <button type="button" className="button-secondary" onClick={() => setView("story")}>
+                      {locale === "en" ? "Open story deck" : locale === "es" ? "Abrir story deck" : "打开 Story 二级页"}
                     </button>
                     {sessionUser ? (
                       <button type="button" className="button-secondary" onClick={() => setView("care")}>
@@ -1851,58 +2028,64 @@ function App() {
                       <span>{locale === "en" ? "Evidence" : locale === "es" ? "Evidencia" : "真实证据"}</span>
                       <strong>
                         {locale === "en"
-                          ? `${screenshotEvidence.length} evidence shots`
+                          ? `${screenshotEvidence.length} proof shots`
                           : locale === "es"
-                            ? `${screenshotEvidence.length} capturas de evidencia`
+                            ? `${screenshotEvidence.length} pruebas reales`
                             : `${screenshotEvidence.length} 张截图`}
                       </strong>
-                      <p>
+                      <small>
                         {locale === "en"
-                          ? "Apple Health and wearable companion apps form the evidence layer instead of empty claims."
+                          ? "Proof and references now live in Story."
                           : locale === "es"
-                            ? "Apple Health y las apps compañeras de wearables forman la capa de evidencia en vez de promesas vacías."
-                            : "Apple 健康和可穿戴 companion app 一起做证据底板，不靠空泛口号。"}
-                      </p>
+                            ? "Las pruebas y referencias ahora viven en Story."
+                            : "证据和引用都放到 Story。"}
+                      </small>
                     </article>
                     <article className="launch-metric-card">
-                      <span>{locale === "en" ? "Core story" : locale === "es" ? "Narrativa central" : "产品主叙事"}</span>
+                      <span>{locale === "en" ? "Main loop" : locale === "es" ? "Bucle principal" : "产品主闭环"}</span>
                       <strong>{locale === "en" ? "Recovery first" : locale === "es" ? "Recuperación primero" : "恢复优先"}</strong>
-                      <p>
+                      <small>
                         {locale === "en"
-                          ? "Explain the body state first, then offer a recovery action, and finally hand the person toward a trusted support network."
+                          ? "See overload, recover once, then decide on support."
                           : locale === "es"
-                            ? "Primero explica el estado del cuerpo, luego propone una acción de recuperación y al final deriva a la red de apoyo confiable."
-                            : "先解释身体状态，再给恢复动作，最后把人送到可信支持网络里。"}
-                      </p>
+                            ? "Ver la sobrecarga, recuperar una vez y luego decidir el apoyo."
+                            : "先看见透支，再做恢复动作。"}
+                      </small>
                     </article>
                     <article className="launch-metric-card">
-                      <span>{locale === "en" ? "Delivery chain" : locale === "es" ? "Cadena de entrega" : "部署链路"}</span>
-                      <strong>GitHub → Zeabur → iOS</strong>
-                      <p>
+                      <span>{locale === "en" ? "Wearables" : locale === "es" ? "Wearables" : "设备支持"}</span>
+                      <strong>{locale === "en" ? "Huawei, Xiaomi, Apple Watch+" : locale === "es" ? "Huawei, Xiaomi, Apple Watch+" : "华为、小米、Apple Watch+"}</strong>
+                      <small>
                         {locale === "en"
-                          ? "The web app and Capacitor iPhone shell share the same frontend assets and product structure."
+                          ? "Bridge details open on demand in the device page."
                           : locale === "es"
-                            ? "La web y el shell de iPhone con Capacitor comparten los mismos recursos frontend y la misma estructura de producto."
-                            : "网页和 Capacitor iPhone 壳共用同一套前端资源和产品结构。"}
-                      </p>
+                            ? "Los detalles del puente se abren bajo demanda en la página de dispositivos."
+                            : "设备细节按需在 Bridge 展开。"}
+                      </small>
                     </article>
                   </div>
                 </div>
 
-                <div className="launch-hero-gallery">
-                  {screenshotEvidence.slice(0, 3).map((item) => (
-                    <article key={`${item.source}-${item.metric}`} className="launch-shot-card">
-                      <div className="launch-shot-frame">
-                        <img src={item.image} alt={item.alt} loading="lazy" />
-                      </div>
-                      <div className="launch-shot-copy">
-                        <span>{item.source}</span>
-                        <strong>{item.metric}</strong>
-                        <b>{item.value}</b>
-                        <p>{item.note}</p>
-                      </div>
-                    </article>
-                  ))}
+                <div className="featured-scene-card">
+                  <div className="featured-scene-frame">
+                    <img src={featuredScene.image} alt={featuredScene.title} loading="lazy" />
+                  </div>
+                  <div className="featured-scene-copy">
+                    <span>{locale === "en" ? "Real scene" : locale === "es" ? "Escena real" : "真实场景"}</span>
+                    <strong>{featuredScene.title}</strong>
+                    <p>{featuredScene.body}</p>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => setView(featuredScene.targetView)}
+                    >
+                      {locale === "en"
+                        ? "Open scene page"
+                        : locale === "es"
+                          ? "Abrir página de escena"
+                          : "打开场景页"}
+                    </button>
+                  </div>
                 </div>
               </section>
 
@@ -1913,65 +2096,147 @@ function App() {
                   interventionVisible={demoInterventionVisible}
                   isSimulating={isSimulatingStress}
                   locale={locale}
-                  onOpenConnect={() => setView("connect")}
                   onOpenSupport={() => {
                     startBreathing();
                     setView("support");
                   }}
+                  onOpenStory={() => setView("story")}
                   onReset={resetStressSimulation}
                   onSimulate={startStressSimulation}
                   progress={simulationProgress}
                   riskScore={demoRiskScore}
-                  screenshotEvidence={screenshotEvidence}
                   sleepHours={demoSleepHours}
                   stage={demoStage}
-                  supportJourney={supportJourney}
                 />
               </section>
 
-              <section className="card">
+              <section className="card overview-drilldown-card">
                 <div className="split-header">
                   <div>
-                    <p className="section-title">{locale === "en" ? "Product layers" : locale === "es" ? "Capas del producto" : "产品分层"}</p>
+                    <p className="section-title">{locale === "en" ? "Go deeper" : locale === "es" ? "Ir más allá" : "进入下一层"}</p>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "This is not a generic wellness dashboard. The structure moves from self-understanding toward a real support network."
+                        ? "The longer material is still here, but now one click away."
                         : locale === "es"
-                          ? "No es un panel genérico de bienestar. La estructura va desde una misma hacia una red de apoyo real."
-                          : "这不是一个泛健康面板，而是从“我自己”逐层走向“真实支持网络”的产品结构。"}
+                          ? "El material más largo sigue aquí, pero ahora está a un clic."
+                          : "长内容已经移到下一层。"}
                     </p>
                   </div>
                 </div>
-                <div className="layer-grid">
-                  {productLayers.map((item) => (
-                    <article key={item.title} className="layer-card">
-                      <span>{item.tag}</span>
+                <div className="compact-nav-grid">
+                  {storyDrilldowns.map((item) => (
+                    <article key={item.title} className="drilldown-card">
                       <strong>{item.title}</strong>
                       <p>{item.body}</p>
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        onClick={() => setView(item.view)}
+                      >
+                        {locale === "en" ? "Open" : locale === "es" ? "Abrir" : "打开"}
+                      </button>
                     </article>
                   ))}
                 </div>
               </section>
+            </div>
+          )}
 
-              <section className="card growth-card-shell">
+          {view === "story" && (
+            <div className="page-grid">
+              <section className="card">
                 <div className="split-header">
                   <div>
-                    <p className="section-title">{locale === "en" ? "Growth loop" : locale === "es" ? "Bucle de crecimiento" : "增长闭环"}</p>
+                    <p className="section-title">{locale === "en" ? "Story deck" : locale === "es" ? "Story deck" : "Story 二级页"}</p>
+                    <h2>
+                      {locale === "en"
+                        ? "The long explanation stays here, not on the homepage."
+                        : locale === "es"
+                          ? "La explicación larga se queda aquí y ya no presiona la home."
+                          : "长说明放在这里，不再全部堆在首页。"}
+                    </h2>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "Growth is not a bolted-on acquisition trick. The product mechanism itself spreads through support relationships."
+                        ? "This page holds the screenshot proof, support handoff logic, product layers, references, and deployment links."
                         : locale === "es"
-                          ? "El crecimiento no es una táctica añadida de adquisición. El propio mecanismo del producto se expande por relaciones de apoyo."
-                          : "增长不是额外拼接的拉新手段，而是产品机制本身会自然扩散到关怀关系里。"}
+                          ? "Aquí viven las capturas de prueba, la lógica de relevo, las capas de producto, las referencias y los enlaces reales."
+                          : "这里集中放截图证据、支持转交逻辑、产品分层、竞品参考和部署链接。"}
+                    </p>
+                  </div>
+                  <button type="button" className="button-secondary" onClick={() => setView("overview")}>
+                    {locale === "en" ? "Back to overview" : locale === "es" ? "Volver al resumen" : "回到首页概览"}
+                  </button>
+                </div>
+
+                <div className="pitch-storyboard">
+                  <div className="pitch-media-board">
+                    {screenshotEvidence.map((item) => (
+                      <article key={`${item.source}-${item.metric}`} className="evidence-card">
+                        <div className="evidence-image">
+                          <img src={item.image} alt={item.alt} loading="lazy" />
+                        </div>
+                        <div className="evidence-copy">
+                          <span>{item.source}</span>
+                          <strong>{item.metric}</strong>
+                          <b>{item.value}</b>
+                          <p>{item.note}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="journey-board">
+                    {supportJourney.map((item) => (
+                      <article key={item.step} className="journey-card">
+                        <span>{item.step}</span>
+                        <h3>{item.title}</h3>
+                        <p>{item.detail}</p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <section className="card scene-gallery-card">
+                <div className="split-header">
+                  <div>
+                    <p className="section-title">{locale === "en" ? "Real-life scenes" : locale === "es" ? "Escenas reales" : "真实生活场景"}</p>
+                    <p className="section-subtitle">
+                      {locale === "en"
+                        ? "These lifestyle photos now live in the Story page instead of stretching the homepage."
+                        : locale === "es"
+                          ? "Estas fotos reales ahora viven en Story y ya no alargan la home."
+                          : "这些真实生活图现在放到 Story 页，不再继续把首页拉长。"}
                     </p>
                   </div>
                 </div>
-                <div className="growth-grid">
-                  {growthLoopSteps.map((item, index) => (
-                    <article key={item.title} className="growth-step-card">
-                      <span>{`0${index + 1}`}</span>
-                      <strong>{item.title}</strong>
-                      <p>{item.body}</p>
+                <div className="scene-grid">
+                  {lifestyleScenes.map((item) => (
+                    <article key={item.id} className="scene-card">
+                      <div className="scene-image-frame">
+                        <img src={item.image} alt={item.title} loading="lazy" />
+                      </div>
+                      <div className="scene-card-copy">
+                        <span>{locale === "en" ? "Scenario" : locale === "es" ? "Escenario" : "场景"}</span>
+                        <strong>{item.title}</strong>
+                        <p>{item.body}</p>
+                        <div className="scene-card-footer">
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={() => setView(item.targetView)}
+                          >
+                            {locale === "en" ? "Open" : locale === "es" ? "Abrir" : "打开"}
+                          </button>
+                          <a
+                            className="scene-credit"
+                            href={item.creditHref}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            {item.credit}
+                          </a>
+                        </div>
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -3054,32 +3319,28 @@ function PitchDemo({
   interventionVisible,
   isSimulating,
   locale,
-  onOpenConnect,
   onOpenSupport,
+  onOpenStory,
   onReset,
   onSimulate,
   progress,
   riskScore,
-  screenshotEvidence,
   sleepHours,
   stage,
-  supportJourney,
 }: {
   heartRate: number;
   highlights: Array<{ title: string; body: string }>;
   interventionVisible: boolean;
   isSimulating: boolean;
   locale: Locale;
-  onOpenConnect: () => void;
   onOpenSupport: () => void;
+  onOpenStory: () => void;
   onReset: () => void;
   onSimulate: () => void;
   progress: number;
   riskScore: number;
-  screenshotEvidence: ReturnType<typeof getScreenshotEvidence>;
   sleepHours: number;
   stage: { label: string; detail: string };
-  supportJourney: ReturnType<typeof getSupportJourney>;
 }) {
   const orbTone = getOrbTone(riskScore);
   const gaugeStyle = {
@@ -3092,56 +3353,23 @@ function PitchDemo({
         <p className="eyebrow">
           {locale === "en" ? "iPhone-First Demo" : locale === "es" ? "Demo iPhone-first" : "iPhone 优先 Demo"}
         </p>
-        <div className="pitch-media-intro">
+        <div className="pitch-media-intro pitch-media-intro-compact">
           <div className="pitch-media-heading">
-            <p className="section-title">{locale === "en" ? "Evidence storyboard" : locale === "es" ? "Storyboard de evidencia" : "真实截图故事板"}</p>
+            <p className="section-title">{locale === "en" ? "Judge demo" : locale === "es" ? "Demo para jurado" : "评委演示"}</p>
             <h2>
               {locale === "en"
-                ? "Show judges how overload is detected, held, and then handed to a real support network."
+                ? "One tap should raise stress and trigger the intervention."
                 : locale === "es"
-                  ? "Muestra al jurado cómo el desgaste se detecta, se contiene y luego se transfiere a una red de apoyo real."
-                  : "先让评委看见透支如何被发现、被接住，再被转交给真实支持网络。"}
+                  ? "Un toque debe subir el estrés y activar la intervención."
+                  : "一键让压力上升，并触发 AI 干预。"}
             </h2>
             <p className="lede">
               {locale === "en"
-                ? "This screen does not depend on slogans. It uses your actual Apple Health and wearable companion screenshots as proof, then lays out the product handoff logic."
+                ? "This card stays short. Proof and references moved to Story."
                 : locale === "es"
-                  ? "Esta pantalla no depende de eslóganes. Usa tus capturas reales de Apple Health y apps de wearables como prueba, y luego muestra la lógica de relevo del producto."
-                  : "这一屏不靠口号，直接用你本人的 Apple 健康和华为运动健康截图，把“发现问题”这件事落成证据，再把产品的接力逻辑摆出来。"}
+                  ? "Esta tarjeta se mantiene corta. Las pruebas y referencias ya viven en Story."
+                  : "这张卡片只保留演示本身，证据和参考都移到 Story。"}
             </p>
-          </div>
-          <div className="pitch-storyboard">
-            <div className="pitch-media-board">
-              {screenshotEvidence.map((item) => (
-                <article key={`${item.source}-${item.metric}`} className="evidence-card">
-                  <div className="evidence-image">
-                    <img src={item.image} alt={item.alt} loading="lazy" />
-                  </div>
-                  <div className="evidence-copy">
-                    <span>{item.source}</span>
-                    <strong>{item.metric}</strong>
-                    <b>{item.value}</b>
-                    <p>{item.note}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-            <div className="journey-board">
-              {supportJourney.map((item) => (
-                <article key={item.step} className="journey-card">
-                  <span>{item.step}</span>
-                  <h3>{item.title}</h3>
-                  <p>{item.detail}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-          <div className="chip">
-            {locale === "en"
-              ? "The first screen already uses real screenshots. Later this can switch to HealthKit cards and live device-bridge tiles."
-              : locale === "es"
-                ? "La primera pantalla ya usa capturas reales. Después se podrá cambiar por tarjetas de HealthKit y mosaicos del puente de dispositivos."
-                : "当前首屏已接入真实截图素材，后续可替换成 HealthKit 和设备桥接后的实时卡片"}
           </div>
         </div>
 
@@ -3167,8 +3395,8 @@ function PitchDemo({
           <button type="button" className="button-secondary" onClick={onReset}>
             {locale === "en" ? "Reset Demo" : locale === "es" ? "Reiniciar demo" : "重置演示"}
           </button>
-          <button type="button" className="button-secondary" onClick={onOpenConnect}>
-            {locale === "en" ? "Open Device Bridge" : locale === "es" ? "Abrir puente de dispositivos" : "打开设备桥接"}
+          <button type="button" className="button-secondary" onClick={onOpenStory}>
+            {locale === "en" ? "Story" : locale === "es" ? "Story" : "Story"}
           </button>
         </div>
 
@@ -3196,28 +3424,28 @@ function PitchDemo({
       </div>
 
       <div className="phone-stage">
-          <div className="phone-shell">
-            <div className="phone-notch" />
-            <div className="phone-screen">
-              <div className="phone-topline">
-                <span>{locale === "en" ? "EasePulse Demo" : locale === "es" ? "Demo EasePulse" : "EasePulse 演示"}</span>
-                <span>{stage.label}</span>
-              </div>
+        <div className="phone-shell">
+          <div className="phone-notch" />
+          <div className="phone-screen">
+            <div className="phone-topline">
+              <span>{locale === "en" ? "EasePulse Demo" : locale === "es" ? "Demo EasePulse" : "EasePulse 演示"}</span>
+              <span>{stage.label}</span>
+            </div>
 
-              <div className="phone-score">
-                <div className="phone-score-copy">
-                  <span>{locale === "en" ? "Emotional Risk Score" : locale === "es" ? "Puntuación de riesgo emocional" : "情绪风险分"}</span>
-                  <strong>{riskScore}</strong>
-                  <p>{stage.detail}</p>
-                </div>
+            <div className="phone-score">
+              <div className="phone-score-copy">
+                <span>{locale === "en" ? "Emotional Risk Score" : locale === "es" ? "Puntuación de riesgo emocional" : "情绪风险分"}</span>
+                <strong>{riskScore}</strong>
+                <p>{stage.detail}</p>
+              </div>
               <div className="emotion-orb-wrap">
                 <div className={`emotion-orb orb-${orbTone}`} aria-hidden="true" />
               </div>
             </div>
 
-              <div className="gauge-panel">
-                <div className="gauge-ring" style={gaugeStyle}>
-                  <div className="gauge-core">
+            <div className="gauge-panel">
+              <div className="gauge-ring" style={gaugeStyle}>
+                <div className="gauge-core">
                   <strong>{riskScore}</strong>
                   <span>/100</span>
                 </div>
