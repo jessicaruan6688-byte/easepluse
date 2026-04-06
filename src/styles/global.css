@@ -475,6 +475,115 @@ img {
   align-items: stretch;
 }
 
+.visitor-hero-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+  gap: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(194, 235, 245, 0.3), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(244, 250, 248, 0.82));
+}
+
+.visitor-hero-copy {
+  display: grid;
+  gap: 18px;
+}
+
+.visitor-hero-copy h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "STSong", serif;
+  letter-spacing: -0.03em;
+  font-size: clamp(1.9rem, 2.8vw, 2.8rem);
+  line-height: 1.02;
+}
+
+.visitor-gallery {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.visitor-gallery-main,
+.visitor-gallery-small,
+.visitor-side-frame {
+  overflow: hidden;
+  border-radius: 28px;
+  background: rgba(233, 244, 246, 0.9);
+}
+
+.visitor-gallery-main {
+  min-height: 420px;
+}
+
+.visitor-gallery-small {
+  min-height: 202px;
+}
+
+.visitor-gallery-main img,
+.visitor-gallery-small img,
+.visitor-side-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.visitor-gallery-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.visitor-quote-card,
+.visitor-step-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow-soft);
+}
+
+.visitor-quote-card span,
+.visitor-step-card span,
+.ai-brief-panel strong {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.visitor-quote-card strong,
+.visitor-step-card strong {
+  color: #1f4554;
+}
+
+.visitor-step-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.visitor-step-card p,
+.visitor-quote-card p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.visitor-side-card {
+  align-content: start;
+}
+
+.visitor-side-frame {
+  min-height: 220px;
+}
+
 .launch-metric-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -507,6 +616,120 @@ img {
 .launch-metric-card small {
   display: block;
   line-height: 1.45;
+}
+
+.commercial-path-card {
+  display: grid;
+  gap: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(194, 235, 245, 0.32), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(245, 251, 250, 0.82));
+}
+
+.commercial-path-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(280px, 0.82fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.commercial-path-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.commercial-path-copy h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "STSong", serif;
+  letter-spacing: -0.03em;
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
+  line-height: 1.04;
+}
+
+.commercial-path-note {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  color: var(--ink-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.commercial-path-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.commercial-plan-card {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow-soft);
+}
+
+.commercial-plan-card.is-active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(241, 252, 251, 0.88)),
+    var(--accent-tint);
+  border-color: rgba(79, 186, 184, 0.2);
+}
+
+.commercial-plan-topline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.commercial-plan-topline span,
+.commercial-plan-topline small {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.commercial-plan-topline span {
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+}
+
+.commercial-plan-topline small {
+  background: rgba(23, 53, 67, 0.06);
+  color: rgba(23, 53, 67, 0.64);
+}
+
+.commercial-plan-card strong {
+  color: #1f4554;
+  font-size: 1.16rem;
+}
+
+.commercial-plan-card p,
+.commercial-plan-points {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.commercial-plan-points {
+  padding-left: 18px;
+}
+
+.commercial-plan-points li + li {
+  margin-top: 8px;
+}
+
+.commercial-plan-card button {
+  margin-top: auto;
 }
 
 .launch-hero-gallery {
@@ -629,7 +852,8 @@ img {
 .contact-topline,
 .contact-meta,
 .room-meta,
-.card-actions {
+.card-actions,
+.ai-brief-header-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -1662,6 +1886,51 @@ img {
   font-size: 1.35rem;
 }
 
+.ai-brief-card {
+  background:
+    radial-gradient(circle at top right, rgba(194, 235, 245, 0.28), transparent 34%),
+    rgba(255, 255, 255, 0.82);
+}
+
+.ai-brief-card-compact {
+  padding: 24px 28px;
+}
+
+.ai-brief-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(260px, 0.92fr);
+  gap: 18px;
+}
+
+.ai-brief-copy,
+.ai-brief-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-brief-copy h3,
+.ai-brief-panel strong {
+  margin: 0;
+}
+
+.ai-brief-copy p,
+.ai-brief-note,
+.visitor-link-button {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.ai-brief-panel {
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.84);
+}
+
+.ai-brief-panel small {
+  color: var(--ink-soft);
+}
+
 .action-card {
   background:
     radial-gradient(circle at top right, rgba(242, 190, 124, 0.18), transparent 30%),
@@ -1774,6 +2043,7 @@ img {
   .support-layout,
   .hero-grid,
   .launch-hero-card,
+  .visitor-hero-card,
   .pitch-layout,
   .scene-grid,
   .compact-nav-grid,
@@ -1789,7 +2059,11 @@ img {
   .reference-grid,
   .upload-grid,
   .bluetooth-grid,
-  .launch-metric-grid {
+  .launch-metric-grid,
+  .visitor-step-grid,
+  .commercial-path-grid,
+  .ai-brief-layout,
+  .visitor-gallery {
     grid-template-columns: 1fr;
   }
 
@@ -1801,6 +2075,10 @@ img {
   .score-ring {
     width: 180px;
     height: 180px;
+  }
+
+  .commercial-path-header {
+    grid-template-columns: 1fr;
   }
 
   .live-metric-card strong {

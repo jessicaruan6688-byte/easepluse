@@ -37,6 +37,10 @@ import {
   type SessionUser,
   type VerificationPayload,
 } from "./lib/auth-client";
+import {
+  requestRecoveryBrief,
+  type RecoveryBriefResponse,
+} from "./lib/ai-client";
 
 type ViewKey =
   | "overview"
@@ -53,6 +57,7 @@ type UploadMap = Record<"sleep" | "heart" | "stress", string | null>;
 type BluetoothState = "idle" | "connecting" | "connected" | "unsupported" | "error";
 type LiveModeKey = "rest" | "focus" | "release";
 type AuthScreen = "register" | "login" | "verify";
+type PreviewMode = "guest" | "demo";
 
 type QuickLink = {
   badge: string;
@@ -79,9 +84,20 @@ type LifestyleScene = {
   targetView: ViewKey;
 };
 
+type CommercialPlan = {
+  id: "beta" | "personal" | "team";
+  badge: string;
+  state: string;
+  title: string;
+  summary: string;
+  points: string[];
+  cta: string;
+};
+
 const storageKey = "easepulse-custom-snapshot";
 const uploadStorageKey = "easepulse-uploads";
 const localeStorageKey = "easepulse-locale";
+const previewModeStorageKey = "easepulse-preview-mode";
 
 function getNavItems(locale: Locale): Array<{ key: ViewKey; label: string }> {
   if (locale === "en") {
@@ -838,6 +854,122 @@ function getStoryDrilldowns(locale: Locale): Array<{
   ];
 }
 
+function getCommercialPath(locale: Locale): {
+  title: string;
+  body: string;
+  note: string;
+  plans: CommercialPlan[];
+} {
+  if (locale === "en") {
+    return {
+      title: "Beta free first, then a clean path into personal and team plans.",
+      body: "This belongs right after the homepage hero: visible enough to explain the business model, but not loud enough to interrupt the demo.",
+      note: "First payment should appear where ongoing recovery value becomes obvious, not as a hard paywall on the first screen.",
+      plans: [
+        {
+          id: "beta",
+          badge: "Now",
+          state: "Free",
+          title: "Beta Free",
+          summary: "For judges, early testers, and the first public product loop.",
+          points: ["Live web demo and multilingual preview", "Basic wearable bridge path", "Feedback and waitlist access"],
+          cta: "Open beta preview",
+        },
+        {
+          id: "personal",
+          badge: "Next",
+          state: "Subscription",
+          title: "Personal",
+          summary: "For one user who wants daily recovery guidance, AI support, and private history.",
+          points: ["AI recovery brief", "Longer-term trends and rituals", "Personalized recovery routines"],
+          cta: "See personal plan",
+        },
+        {
+          id: "team",
+          badge: "Later",
+          state: "Seats",
+          title: "Team",
+          summary: "For family, school, or employer pilots that need shared visibility and coordinated care.",
+          points: ["Care-circle seats", "Escalation routing and shared notes", "Manager or coordinator summary layer"],
+          cta: "See team plan",
+        },
+      ],
+    };
+  }
+
+  if (locale === "es") {
+    return {
+      title: "Beta gratis primero, luego una ruta clara hacia plan personal y de equipo.",
+      body: "Esta sección va justo después del hero: visible para explicar el negocio, pero sin romper la calma de la home.",
+      note: "El primer cobro debe aparecer donde el valor continuo de recuperación ya se siente indispensable, no como muro en la primera pantalla.",
+      plans: [
+        {
+          id: "beta",
+          badge: "Ahora",
+          state: "Gratis",
+          title: "Beta Gratis",
+          summary: "Para jurado, primeros testers y el primer ciclo público del producto.",
+          points: ["Demo web en vivo y vista multilingüe", "Ruta base de integración wearable", "Acceso a feedback y lista de espera"],
+          cta: "Abrir beta",
+        },
+        {
+          id: "personal",
+          badge: "Luego",
+          state: "Suscripción",
+          title: "Personal",
+          summary: "Para quien quiere guía diaria de recuperación, apoyo IA e historial privado.",
+          points: ["Resumen IA de recuperación", "Tendencias e historial personal", "Rutinas de recuperación personalizadas"],
+          cta: "Ver plan personal",
+        },
+        {
+          id: "team",
+          badge: "Escala",
+          state: "Asientos",
+          title: "Equipo",
+          summary: "Para pilotos con familia, campus o empresa que necesitan visibilidad compartida y coordinación.",
+          points: ["Asientos para círculo de cuidado", "Escalación y notas compartidas", "Capa de resumen para coordinadores"],
+          cta: "Ver plan de equipo",
+        },
+      ],
+    };
+  }
+
+  return {
+    title: "先用 Beta 免费跑通，再升级到个人版和团队版。",
+    body: "这块放在首页首屏之后最合适，能说明商业路径，但不会打断演示节奏。",
+    note: "真正开始收费，应该放在用户已经感受到持续恢复价值之后，而不是第一屏就硬拦。",
+    plans: [
+      {
+        id: "beta",
+        badge: "当前",
+        state: "免费",
+        title: "Beta 免费",
+        summary: "给评审、早期用户和第一轮公开体验使用。",
+        points: ["真实网页演示和多语言预览", "基础设备桥接链路", "反馈回收和候补入口"],
+        cta: "进入 Beta 演示",
+      },
+      {
+        id: "personal",
+        badge: "下一步",
+        state: "订阅",
+        title: "个人版",
+        summary: "给真正想长期使用的人，重点是日常恢复、AI 辅助和个人历史。",
+        points: ["AI 恢复简报", "长期趋势和复盘", "更个性化的恢复提醒"],
+        cta: "查看个人版",
+      },
+      {
+        id: "team",
+        badge: "后续",
+        state: "多席位",
+        title: "团队版",
+        summary: "给家庭、校园或机构试点，重点是协同查看和关怀响应。",
+        points: ["关怀圈席位", "升级提醒与共享记录", "面向协调者的汇总视图"],
+        cta: "查看团队版",
+      },
+    ],
+  };
+}
+
 function getScenarioTags(locale: Locale): Record<string, string> {
   if (locale === "en") {
     return {
@@ -1044,6 +1176,9 @@ function App() {
   const [previewCode, setPreviewCode] = useState<string | null>(null);
   const [prefilledVerificationCode, setPrefilledVerificationCode] = useState("");
   const [view, setView] = useState<ViewKey>("overview");
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(() =>
+    readStoredValue(previewModeStorageKey, "guest"),
+  );
   const localizedScenarios = getScenarios(locale);
   const [scenarioId, setScenarioId] = useState<string>(localizedScenarios[0].id);
   const [customSnapshot, setCustomSnapshot] = useState<Snapshot>(() =>
@@ -1076,9 +1211,13 @@ function App() {
   const [lastSignalAt, setLastSignalAt] = useState("");
   const [isSimulatingStress, setIsSimulatingStress] = useState(false);
   const [simulationProgress, setSimulationProgress] = useState(0);
+  const [recoveryBrief, setRecoveryBrief] = useState<RecoveryBriefResponse | null>(null);
+  const [recoveryBriefLoading, setRecoveryBriefLoading] = useState(false);
+  const [recoveryBriefError, setRecoveryBriefError] = useState("");
   const deviceRef = useRef<any>(null);
   const characteristicRef = useRef<any>(null);
   const simulationStartedAtRef = useRef<number | null>(null);
+  const recoveryBriefKeyRef = useRef("");
 
   useEffect(() => {
     const verificationLink = readVerificationLink();
@@ -1130,6 +1269,10 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(localeStorageKey, JSON.stringify(locale));
   }, [locale]);
+
+  useEffect(() => {
+    window.localStorage.setItem(previewModeStorageKey, JSON.stringify(previewMode));
+  }, [previewMode]);
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -1279,8 +1422,11 @@ function App() {
   const supportJourney = getSupportJourney(locale);
   const lifestyleScenes = getLifestyleScenes(locale);
   const storyDrilldowns = getStoryDrilldowns(locale);
+  const commercialPath = getCommercialPath(locale);
   const scenarioTags = getScenarioTags(locale);
   const featuredScene = lifestyleScenes[0];
+  const calmScene = lifestyleScenes[1] ?? featuredScene;
+  const homeResetScene = lifestyleScenes[2] ?? calmScene;
   const designNotes = getDesignNotes(locale);
   const judgeHighlights = getJudgeHighlights(locale);
   const activeScenario: Scenario =
@@ -1316,6 +1462,29 @@ function App() {
   const sharingTierLabels = getSharingTierLabels(locale);
   const sharingNotes = getSharingNotes(locale);
   const productLayers = getProductLayers(locale);
+  const recoveryBriefRequestKey = JSON.stringify({
+    locale,
+    scenarioId,
+    isCustomMode,
+    sleepHours: activeSnapshot.sleepHours,
+    sleepScore: activeSnapshot.sleepScore,
+    restingHeartRate: activeSnapshot.restingHeartRate,
+    baselineRestingHeartRate: activeSnapshot.baselineRestingHeartRate,
+    stressLevel: activeSnapshot.stressLevel,
+    activeMinutes: activeSnapshot.activeMinutes,
+    sedentaryHours: activeSnapshot.sedentaryHours,
+    moodScore: activeSnapshot.moodScore,
+    notes: activeSnapshot.notes,
+    symptoms: activeSnapshot.symptoms,
+    status: evaluation.status,
+    recoveryScore: evaluation.recoveryScore,
+    reasons: evaluation.reasons,
+    nextActionTitle: evaluation.nextActionTitle,
+    nextActionDetail: evaluation.nextActionDetail,
+    careContacts: careContacts.length,
+    liveHeartRate,
+    bluetoothState,
+  });
 
   function updateSnapshot<K extends keyof Snapshot>(key: K, value: Snapshot[K]) {
     setCustomSnapshot((current) => ({
@@ -1745,22 +1914,34 @@ function App() {
       : locale === "es"
         ? `${welcomeName}, revisa primero tu estado de recuperación de hoy.`
         : `${welcomeName}，先看今天的恢复状态。`
-    : locale === "en"
-      ? "Make overload visible, then start recovery."
-      : locale === "es"
-        ? "Haz visible la sobrecarga y luego empieza la recuperación."
-        : "先看见透支，再开始恢复。";
+    : previewMode === "demo"
+      ? locale === "en"
+        ? "Turn stress into a clear recovery demo."
+        : locale === "es"
+          ? "Convierte el estrés en una demo clara de recuperación."
+          : "把压力演示成一条清楚的恢复链。"
+      : locale === "en"
+        ? "Start from stillness before entering the system."
+        : locale === "es"
+          ? "Empieza desde la quietud antes de entrar en el sistema."
+          : "先回到安静，再进入系统。";
   const heroLede = sessionUser
     ? locale === "en"
       ? `${sessionUser.email} is already connected. This page opens straight into the product chain and your data.`
       : locale === "es"
         ? `${sessionUser.email} ya está conectado. Esta página abre directo al producto y a tus datos.`
         : `${sessionUser.email} 已接入。现在直接看产品链路和你的数据。`
-    : locale === "en"
-      ? "The homepage now keeps only the product entry, stress demo, and next-step pages. Sign-up moved to the second layer."
-      : locale === "es"
-        ? "La home ahora deja solo la entrada al producto, el demo de estrés y las páginas siguientes. El registro pasó a la segunda capa."
-        : "首页现在只保留产品入口、压力演示和下一步页面，注册放到第二层。";
+    : previewMode === "demo"
+      ? locale === "en"
+        ? "Demo preview keeps the pressure rise, AI intervention, and support handoff visible in one chain."
+        : locale === "es"
+          ? "La vista demo mantiene en una sola cadena el aumento de presión, la intervención IA y el traspaso de apoyo."
+          : "演示预览会把压力上升、AI 干预和支持转交放在一条链路里。"
+      : locale === "en"
+        ? "Visitor preview stays softer: calmer imagery, lighter entry points, and one clear path into the live demo."
+        : locale === "es"
+          ? "La vista visitante es más suave: imágenes tranquilas, entradas ligeras y una ruta clara hacia la demo."
+          : "访客预览会更柔和一些：先看静谧图片，再决定是否进入演示。";
   const authStatusLabel = sessionUser
     ? locale === "en"
       ? "Workspace connected"
@@ -1769,15 +1950,86 @@ function App() {
         : "已登录工作台"
     : sessionReady
       ? locale === "en"
-        ? "Guest preview"
+        ? "Guest access"
         : locale === "es"
-          ? "Vista invitada"
-          : "访客预览"
+          ? "Acceso invitado"
+          : "访客访问"
       : locale === "en"
         ? "Checking session"
         : locale === "es"
           ? "Verificando sesión"
-          : "检查会话中";
+        : "检查会话中";
+  const previewModeLabel =
+    previewMode === "demo"
+      ? locale === "en"
+        ? "Demo preview"
+        : locale === "es"
+          ? "Vista demo"
+          : "演示预览"
+      : locale === "en"
+        ? "Visitor preview"
+        : locale === "es"
+          ? "Vista visitante"
+          : "访客预览";
+
+  async function refreshRecoveryBrief(force = false) {
+    if (!force && recoveryBriefKeyRef.current === recoveryBriefRequestKey && recoveryBrief) {
+      return;
+    }
+
+    if (!force && recoveryBriefLoading && recoveryBriefKeyRef.current === recoveryBriefRequestKey) {
+      return;
+    }
+
+    recoveryBriefKeyRef.current = recoveryBriefRequestKey;
+    setRecoveryBriefLoading(true);
+    setRecoveryBriefError("");
+
+    try {
+      const result = await requestRecoveryBrief({
+        locale,
+        snapshot: activeSnapshot,
+        evaluation: {
+          status: evaluation.status,
+          statusLabel: evaluation.statusLabel,
+          recoveryScore: evaluation.recoveryScore,
+          reasons: evaluation.reasons,
+          message: evaluation.message,
+          nextActionTitle: evaluation.nextActionTitle,
+          nextActionDetail: evaluation.nextActionDetail,
+          focusLabel: evaluation.focusLabel,
+        },
+        context: {
+          scenarioName: isCustomMode ? evaluation.statusLabel : activeScenario.name,
+          careContactsCount: careContacts.length,
+          bluetoothState,
+          liveHeartRate,
+        },
+      });
+
+      setRecoveryBrief(result);
+    } catch (error) {
+      setRecoveryBriefError(
+        error instanceof Error
+          ? error.message
+          : locale === "en"
+            ? "Failed to load the AI recovery brief."
+            : locale === "es"
+              ? "No se pudo cargar el brief de recuperación."
+              : "AI 恢复简报加载失败。",
+      );
+    } finally {
+      setRecoveryBriefLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (view !== "dashboard" && view !== "support") {
+      return;
+    }
+
+    void refreshRecoveryBrief();
+  }, [view, recoveryBriefRequestKey]);
 
   return (
     <div className={`app-shell mode-${liveMode.key}`}>
@@ -1798,6 +2050,22 @@ function App() {
             </button>
             <button type="button" className={locale === "es" ? "chip chip-solid" : "chip"} onClick={() => setLocale("es")}>
               Español
+            </button>
+          </div>
+          <div className="hero-actions">
+            <button
+              type="button"
+              className={previewMode === "guest" ? "chip chip-solid" : "chip"}
+              onClick={() => setPreviewMode("guest")}
+            >
+              {locale === "en" ? "Visitor Preview" : locale === "es" ? "Vista visitante" : "访客预览"}
+            </button>
+            <button
+              type="button"
+              className={previewMode === "demo" ? "chip chip-solid" : "chip"}
+              onClick={() => setPreviewMode("demo")}
+            >
+              {locale === "en" ? "Demo Preview" : locale === "es" ? "Vista demo" : "演示预览"}
             </button>
           </div>
         </div>
@@ -1826,8 +2094,8 @@ function App() {
             <strong>{authStatusLabel}</strong>
           </div>
           <div className="status-pill">
-            <span>{locale === "en" ? "Mode" : locale === "es" ? "Modo" : "当前模式"}</span>
-            <strong>{liveMode.label}</strong>
+            <span>{locale === "en" ? "Preview" : locale === "es" ? "Vista" : "当前预览"}</span>
+            <strong>{previewModeLabel}</strong>
           </div>
           <div className="status-pill">
             <span>{locale === "en" ? "Device" : locale === "es" ? "Dispositivo" : "设备状态"}</span>
@@ -1904,241 +2172,403 @@ function App() {
             ))}
           </nav>
 
-          <section className="scenario-card">
-            <div className="split-header split-header-tight">
-              <div>
-                <p className="section-title">
-                  {locale === "en" ? "Demo scenarios" : locale === "es" ? "Escenarios demo" : "演示场景"}
-                </p>
-                <p className="section-subtitle">
+          {previewMode === "demo" ? (
+            <section className="scenario-card">
+              <div className="split-header split-header-tight">
+                <div>
+                  <p className="section-title">
+                    {locale === "en" ? "Demo scenarios" : locale === "es" ? "Escenarios demo" : "演示场景"}
+                  </p>
+                  <p className="section-subtitle">
+                    {locale === "en"
+                      ? "Scenario switching only appears in demo preview."
+                      : locale === "es"
+                        ? "El cambio de escenarios solo aparece en la vista demo."
+                        : "只有演示预览会显示场景切换。"}
+                  </p>
+                </div>
+                <div className="chip">
+                  {isCustomMode
+                    ? locale === "en"
+                      ? "Real input"
+                      : locale === "es"
+                        ? "Entrada real"
+                        : "真实录入中"
+                    : locale === "en"
+                      ? "Demo data"
+                      : locale === "es"
+                        ? "Datos demo"
+                        : "演示数据"}
+                </div>
+              </div>
+
+              <div className="scenario-list">
+                {localizedScenarios.map((scenario) => (
+                  <button
+                    key={scenario.id}
+                    className={
+                      scenario.id === scenarioId ? "scenario-button active" : "scenario-button"
+                    }
+                    type="button"
+                    onClick={() => {
+                      setScenarioId(scenario.id);
+                      setIsCustomMode(false);
+                      setPreviewMode("demo");
+                      setView("dashboard");
+                    }}
+                  >
+                    <strong>{scenario.name}</strong>
+                    <small>{scenarioTags[scenario.id] ?? scenario.name}</small>
+                  </button>
+                ))}
+              </div>
+
+              <div className="scenario-current-note">
+                <span>{locale === "en" ? "Current scene" : locale === "es" ? "Escena actual" : "当前场景"}</span>
+                <p>{activeScenario.subtitle}</p>
+              </div>
+            </section>
+          ) : (
+            <section className="scenario-card visitor-side-card">
+              <div className="visitor-side-frame">
+                <img src={calmScene.image} alt={calmScene.title} loading="lazy" />
+              </div>
+              <div className="scenario-current-note">
+                <span>{locale === "en" ? "Visitor preview" : locale === "es" ? "Vista visitante" : "访客预览"}</span>
+                <p>
                   {locale === "en"
-                    ? "Keep quick switching here and move the detail into the active scene note."
+                    ? "Start with quieter visuals and product atmosphere first, then enter the demo when you want to see the stress flow."
                     : locale === "es"
-                      ? "Mantén aquí el cambio rápido y deja el detalle en la nota del escenario activo."
-                      : "这里保留快速切换，细节放到当前场景说明。"}
+                      ? "Empieza con una atmósfera más tranquila y entra en la demo cuando quieras ver el flujo de estrés."
+                      : "先看更安静的画面和产品气质，需要时再进入完整演示。"}
                 </p>
               </div>
-              <div className="chip">
-                {isCustomMode
-                  ? locale === "en"
-                    ? "Real input"
-                    : locale === "es"
-                      ? "Entrada real"
-                      : "真实录入中"
-                  : locale === "en"
-                    ? "Demo data"
-                    : locale === "es"
-                      ? "Datos demo"
-                      : "演示数据"}
-              </div>
-            </div>
-
-            <div className="scenario-list">
-              {localizedScenarios.map((scenario) => (
-                <button
-                  key={scenario.id}
-                  className={
-                    scenario.id === scenarioId ? "scenario-button active" : "scenario-button"
-                  }
-                  type="button"
-                  onClick={() => {
-                    setScenarioId(scenario.id);
-                    setIsCustomMode(false);
-                    setView("dashboard");
-                  }}
-                >
-                  <strong>{scenario.name}</strong>
-                  <small>{scenarioTags[scenario.id] ?? scenario.name}</small>
-                </button>
-              ))}
-            </div>
-
-            <div className="scenario-current-note">
-              <span>{locale === "en" ? "Current scene" : locale === "es" ? "Escena actual" : "当前场景"}</span>
-              <p>{activeScenario.subtitle}</p>
-            </div>
-          </section>
+              <button
+                type="button"
+                className="button-primary"
+                onClick={() => {
+                  setPreviewMode("demo");
+                  setView("overview");
+                }}
+              >
+                {locale === "en" ? "Enter demo preview" : locale === "es" ? "Entrar en vista demo" : "进入演示预览"}
+              </button>
+            </section>
+          )}
         </aside>
 
         <section className="content">
           {view === "overview" && (
             <div className="page-grid">
-              <section className="card launch-hero-card launch-hero-card-compact">
-                <div className="launch-hero-copy">
-                  <div className="split-header">
-                    <div>
-                      <p className="section-title">Project First</p>
+              {previewMode === "guest" ? (
+                <>
+                  <section className="card visitor-hero-card">
+                    <div className="visitor-hero-copy">
+                      <p className="section-title">{locale === "en" ? "Visitor preview" : locale === "es" ? "Vista visitante" : "访客预览"}</p>
                       <h2>
                         {locale === "en"
-                          ? "Shorter homepage, clearer product."
+                          ? "A softer first look before the stress demo begins."
                           : locale === "es"
-                            ? "Home más corta, producto más claro."
-                            : "首页更短，产品更清楚。"}
+                            ? "Una primera mirada más suave antes de que empiece la demo."
+                            : "先看一眼更静、更轻的页面，再决定是否进入演示。"}
                       </h2>
                       <p className="section-subtitle">
                         {locale === "en"
-                          ? "Long explanation moved to Story. The first screen keeps only entry points, demo motion, and next steps."
+                          ? "This version keeps the page quiet: serene imagery, real links, and one obvious path into the live product flow."
                           : locale === "es"
-                            ? "La explicación larga pasó a Story. La primera pantalla deja solo entradas, demo y siguientes pasos."
-                            : "长说明去 Story，首屏只保留入口、演示和下一步。"}
+                            ? "Esta versión se mantiene tranquila: imágenes serenas, enlaces reales y una ruta clara hacia la demo."
+                            : "这一层先保持安静：看图、看真实入口、看产品气质，需要时再进入完整演示链路。"}
                       </p>
+                      <div className="hero-actions">
+                        <button
+                          type="button"
+                          className="button-primary"
+                          onClick={() => {
+                            setPreviewMode("demo");
+                            setView("overview");
+                          }}
+                        >
+                          {locale === "en" ? "Enter demo preview" : locale === "es" ? "Entrar en vista demo" : "进入演示预览"}
+                        </button>
+                        <button type="button" className="button-secondary" onClick={() => setView("story")}>
+                          {locale === "en" ? "Open story deck" : locale === "es" ? "Abrir story deck" : "打开 Story 二级页"}
+                        </button>
+                        <a className="button-secondary visitor-link-button" href="https://easepluse.zeabur.app/" rel="noreferrer" target="_blank">
+                          {locale === "en" ? "Open live site" : locale === "es" ? "Abrir sitio real" : "打开线上站"}
+                        </a>
+                      </div>
+                      <div className="visitor-step-grid">
+                        <article className="visitor-step-card">
+                          <span>{locale === "en" ? "Quiet entry" : locale === "es" ? "Entrada suave" : "静一点进入"}</span>
+                          <strong>{locale === "en" ? "See the tone first" : locale === "es" ? "Mira primero el tono" : "先看页面气质"}</strong>
+                          <p>{locale === "en" ? "The visitor view should feel restorative before it feels technical." : locale === "es" ? "La vista visitante debe sentirse reparadora antes que técnica." : "访客页先要让人放松，再让人理解功能。"}</p>
+                        </article>
+                        <article className="visitor-step-card">
+                          <span>{locale === "en" ? "Real path" : locale === "es" ? "Ruta real" : "真实入口"}</span>
+                          <strong>{locale === "en" ? "Everything clickable stays real" : locale === "es" ? "Todo lo clickable es real" : "所有入口都要真能点开"}</strong>
+                          <p>{locale === "en" ? "Live site, story deck, and later the product demo are separate moves." : locale === "es" ? "Sitio real, story deck y demo del producto son pasos distintos." : "线上站、Story 页和产品演示要分成不同路径。"}</p>
+                        </article>
+                        <article className="visitor-step-card">
+                          <span>{locale === "en" ? "Switch later" : locale === "es" ? "Cambia después" : "按需切换"}</span>
+                          <strong>{locale === "en" ? "Demo starts only when you want it" : locale === "es" ? "La demo solo empieza cuando tú quieres" : "需要时再切到演示"}</strong>
+                          <p>{locale === "en" ? "The pressure playback no longer has to dominate the first screen." : locale === "es" ? "La reproducción de presión ya no domina la primera pantalla." : "压力演示不再强行占据访客的第一屏。"}</p>
+                        </article>
+                      </div>
                     </div>
-                    <div className="chip chip-solid">
-                      {sessionUser
-                        ? locale === "en"
-                          ? "Workspace connected"
-                          : locale === "es"
-                            ? "Espacio conectado"
-                            : "工作台已连接"
-                        : locale === "en"
-                          ? "Product preview open"
-                          : locale === "es"
-                            ? "Vista abierta del producto"
-                            : "项目预览开放"}
+
+                    <div className="visitor-gallery">
+                      <div className="visitor-gallery-main">
+                        <img src={calmScene.image} alt={calmScene.title} loading="lazy" />
+                      </div>
+                      <div className="visitor-gallery-stack">
+                        <div className="visitor-gallery-small">
+                          <img src={homeResetScene.image} alt={homeResetScene.title} loading="lazy" />
+                        </div>
+                        <article className="visitor-quote-card">
+                          <span>{locale === "en" ? "Atmosphere" : locale === "es" ? "Atmósfera" : "气质"}</span>
+                          <strong>
+                            {locale === "en"
+                              ? "Gentle enough to lower the shoulders."
+                              : locale === "es"
+                                ? "Lo bastante suave como para bajar los hombros."
+                                : "要柔和到让人先把肩膀放下来。"}
+                          </strong>
+                        </article>
+                      </div>
                     </div>
-                  </div>
+                  </section>
 
-                  <div className="hero-actions">
-                    <button type="button" className="button-primary" onClick={() => setView("dashboard")}>
-                      {locale === "en" ? "Open today's state" : locale === "es" ? "Abrir estado de hoy" : "打开今日状态"}
-                    </button>
-                    <button type="button" className="button-secondary" onClick={() => setView("story")}>
-                      {locale === "en" ? "Open story deck" : locale === "es" ? "Abrir story deck" : "打开 Story 二级页"}
-                    </button>
-                    {sessionUser ? (
-                      <button type="button" className="button-secondary" onClick={() => setView("care")}>
-                        {locale === "en" ? "Open care circle" : locale === "es" ? "Abrir círculo de cuidado" : "进入关怀圈"}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="button-secondary"
-                        onClick={() => {
-                          setAuthScreen("register");
-                          setShowAuthGate(true);
-                        }}
-                      >
-                        {locale === "en" ? "Save my profile" : locale === "es" ? "Guardar mi perfil" : "保存我的画像"}
-                      </button>
-                    )}
-                  </div>
+                  <CommercialPathSection
+                    locale={locale}
+                    path={commercialPath}
+                    onOpenBeta={() => {
+                      setPreviewMode("demo");
+                      setView("dashboard");
+                    }}
+                    onOpenPersonal={() => setView("support")}
+                    onOpenTeam={() => setView("care")}
+                  />
 
-                  <div className="launch-metric-grid">
-                    <article className="launch-metric-card">
-                      <span>{locale === "en" ? "Evidence" : locale === "es" ? "Evidencia" : "真实证据"}</span>
-                      <strong>
-                        {locale === "en"
-                          ? `${screenshotEvidence.length} proof shots`
-                          : locale === "es"
-                            ? `${screenshotEvidence.length} pruebas reales`
-                            : `${screenshotEvidence.length} 张截图`}
-                      </strong>
-                      <small>
-                        {locale === "en"
-                          ? "Proof and references now live in Story."
-                          : locale === "es"
-                            ? "Las pruebas y referencias ahora viven en Story."
-                            : "证据和引用都放到 Story。"}
-                      </small>
-                    </article>
-                    <article className="launch-metric-card">
-                      <span>{locale === "en" ? "Main loop" : locale === "es" ? "Bucle principal" : "产品主闭环"}</span>
-                      <strong>{locale === "en" ? "Recovery first" : locale === "es" ? "Recuperación primero" : "恢复优先"}</strong>
-                      <small>
-                        {locale === "en"
-                          ? "See overload, recover once, then decide on support."
-                          : locale === "es"
-                            ? "Ver la sobrecarga, recuperar una vez y luego decidir el apoyo."
-                            : "先看见透支，再做恢复动作。"}
-                      </small>
-                    </article>
-                    <article className="launch-metric-card">
-                      <span>{locale === "en" ? "Wearables" : locale === "es" ? "Wearables" : "设备支持"}</span>
-                      <strong>{locale === "en" ? "Huawei, Xiaomi, Apple Watch+" : locale === "es" ? "Huawei, Xiaomi, Apple Watch+" : "华为、小米、Apple Watch+"}</strong>
-                      <small>
-                        {locale === "en"
-                          ? "Bridge details open on demand in the device page."
-                          : locale === "es"
-                            ? "Los detalles del puente se abren bajo demanda en la página de dispositivos."
-                            : "设备细节按需在 Bridge 展开。"}
-                      </small>
-                    </article>
-                  </div>
-                </div>
+                  <section className="card overview-drilldown-card">
+                    <div className="split-header">
+                      <div>
+                        <p className="section-title">{locale === "en" ? "Next step" : locale === "es" ? "Siguiente paso" : "下一步"}</p>
+                        <p className="section-subtitle">
+                          {locale === "en"
+                            ? "Visitor preview stays lighter. Use the cards below to decide where to go next."
+                            : locale === "es"
+                              ? "La vista visitante se mantiene más ligera. Usa estas tarjetas para decidir a dónde ir."
+                              : "访客预览保持更轻，下面这些入口再决定你下一步去哪里。"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="compact-nav-grid">
+                      {storyDrilldowns.map((item) => (
+                        <article key={item.title} className="drilldown-card">
+                          <strong>{item.title}</strong>
+                          <p>{item.body}</p>
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={() => {
+                              if (item.view === "dashboard") {
+                                setPreviewMode("demo");
+                              }
+                              setView(item.view);
+                            }}
+                          >
+                            {locale === "en" ? "Open" : locale === "es" ? "Abrir" : "打开"}
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                </>
+              ) : (
+                <>
+                  <section className="card launch-hero-card launch-hero-card-compact">
+                    <div className="launch-hero-copy">
+                      <div className="split-header">
+                        <div>
+                          <p className="section-title">{locale === "en" ? "Demo preview" : locale === "es" ? "Vista demo" : "演示预览"}</p>
+                          <h2>
+                            {locale === "en"
+                              ? "Show stress, recovery, and support in one visible chain."
+                              : locale === "es"
+                                ? "Muestra estrés, recuperación y apoyo en una sola cadena visible."
+                                : "把压力、恢复和支持转交放到一条清楚的链路里。"}
+                          </h2>
+                          <p className="section-subtitle">
+                            {locale === "en"
+                              ? "This layer is for judges and product review. It keeps the risk rise, intervention, and next-step routing on screen."
+                              : locale === "es"
+                                ? "Esta capa es para jurado y revisión del producto. Mantiene en pantalla el ascenso del riesgo, la intervención y el desvío posterior."
+                                : "这一层专门给演示和评审看，会把风险上升、干预动作和后续分流留在屏幕上。"}
+                          </p>
+                        </div>
+                        <div className="chip chip-solid">
+                          {sessionUser
+                            ? locale === "en"
+                              ? "Workspace connected"
+                              : locale === "es"
+                                ? "Espacio conectado"
+                                : "工作台已连接"
+                            : locale === "en"
+                              ? "Demo mode"
+                              : locale === "es"
+                                ? "Modo demo"
+                                : "演示模式"}
+                        </div>
+                      </div>
 
-                <div className="featured-scene-card">
-                  <div className="featured-scene-frame">
-                    <img src={featuredScene.image} alt={featuredScene.title} loading="lazy" />
-                  </div>
-                  <div className="featured-scene-copy">
-                    <span>{locale === "en" ? "Real scene" : locale === "es" ? "Escena real" : "真实场景"}</span>
-                    <strong>{featuredScene.title}</strong>
-                    <p>{featuredScene.body}</p>
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      onClick={() => setView(featuredScene.targetView)}
-                    >
-                      {locale === "en"
-                        ? "Open scene page"
-                        : locale === "es"
-                          ? "Abrir página de escena"
-                          : "打开场景页"}
-                    </button>
-                  </div>
-                </div>
-              </section>
+                      <div className="hero-actions">
+                        <button
+                          type="button"
+                          className="button-primary"
+                          onClick={() => {
+                            setPreviewMode("demo");
+                            setView("dashboard");
+                          }}
+                        >
+                          {locale === "en" ? "Open today's state" : locale === "es" ? "Abrir estado de hoy" : "打开今日状态"}
+                        </button>
+                        <button type="button" className="button-secondary" onClick={() => setView("story")}>
+                          {locale === "en" ? "Open story deck" : locale === "es" ? "Abrir story deck" : "打开 Story 二级页"}
+                        </button>
+                        <button type="button" className="button-secondary" onClick={() => setPreviewMode("guest")}>
+                          {locale === "en" ? "Back to visitor view" : locale === "es" ? "Volver a vista visitante" : "回到访客预览"}
+                        </button>
+                      </div>
 
-              <section className="card hero-card pitch-card-shell">
-                <PitchDemo
-                  heartRate={demoHeartRate}
-                  highlights={judgeHighlights}
-                  interventionVisible={demoInterventionVisible}
-                  isSimulating={isSimulatingStress}
-                  locale={locale}
-                  onOpenSupport={() => {
-                    startBreathing();
-                    setView("support");
-                  }}
-                  onOpenStory={() => setView("story")}
-                  onReset={resetStressSimulation}
-                  onSimulate={startStressSimulation}
-                  progress={simulationProgress}
-                  riskScore={demoRiskScore}
-                  sleepHours={demoSleepHours}
-                  stage={demoStage}
-                />
-              </section>
+                      <div className="launch-metric-grid">
+                        <article className="launch-metric-card">
+                          <span>{locale === "en" ? "Evidence" : locale === "es" ? "Evidencia" : "真实证据"}</span>
+                          <strong>
+                            {locale === "en"
+                              ? `${screenshotEvidence.length} proof shots`
+                              : locale === "es"
+                                ? `${screenshotEvidence.length} pruebas reales`
+                                : `${screenshotEvidence.length} 张截图`}
+                          </strong>
+                          <small>
+                            {locale === "en"
+                              ? "Keep screenshots and references ready for judge questions."
+                              : locale === "es"
+                                ? "Mantén listas las capturas y referencias para las preguntas del jurado."
+                                : "把截图证据和参考入口都留给评委追问。"}
+                          </small>
+                        </article>
+                        <article className="launch-metric-card">
+                          <span>{locale === "en" ? "Main loop" : locale === "es" ? "Bucle principal" : "产品主闭环"}</span>
+                          <strong>{locale === "en" ? "Recovery first" : locale === "es" ? "Recuperación primero" : "恢复优先"}</strong>
+                          <small>
+                            {locale === "en"
+                              ? "Make overload visible, run one reset, then hand off to real support."
+                              : locale === "es"
+                                ? "Haz visible la sobrecarga, ejecuta un reset y luego deriva a apoyo real."
+                                : "先看见透支，做一个恢复动作，再交给真实支持网络。"}
+                          </small>
+                        </article>
+                        <article className="launch-metric-card">
+                          <span>{locale === "en" ? "Wearables" : locale === "es" ? "Wearables" : "设备支持"}</span>
+                          <strong>{locale === "en" ? "Huawei, Xiaomi, Apple Watch+" : locale === "es" ? "Huawei, Xiaomi, Apple Watch+" : "华为、小米、Apple Watch+"}</strong>
+                          <small>
+                            {locale === "en"
+                              ? "Device details stay one layer deeper so the demo can stay focused."
+                              : locale === "es"
+                                ? "Los detalles del dispositivo quedan una capa más abajo para mantener el foco de la demo."
+                                : "设备细节放在下一层，演示首页只保留主线。"}
+                          </small>
+                        </article>
+                      </div>
+                    </div>
 
-              <section className="card overview-drilldown-card">
-                <div className="split-header">
-                  <div>
-                    <p className="section-title">{locale === "en" ? "Go deeper" : locale === "es" ? "Ir más allá" : "进入下一层"}</p>
-                    <p className="section-subtitle">
-                      {locale === "en"
-                        ? "The longer material is still here, but now one click away."
-                        : locale === "es"
-                          ? "El material más largo sigue aquí, pero ahora está a un clic."
-                          : "长内容已经移到下一层。"}
-                    </p>
-                  </div>
-                </div>
-                <div className="compact-nav-grid">
-                  {storyDrilldowns.map((item) => (
-                    <article key={item.title} className="drilldown-card">
-                      <strong>{item.title}</strong>
-                      <p>{item.body}</p>
-                      <button
-                        type="button"
-                        className="button-secondary"
-                        onClick={() => setView(item.view)}
-                      >
-                        {locale === "en" ? "Open" : locale === "es" ? "Abrir" : "打开"}
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              </section>
+                    <div className="featured-scene-card">
+                      <div className="featured-scene-frame">
+                        <img src={featuredScene.image} alt={featuredScene.title} loading="lazy" />
+                      </div>
+                      <div className="featured-scene-copy">
+                        <span>{locale === "en" ? "Demo scene" : locale === "es" ? "Escena demo" : "演示场景"}</span>
+                        <strong>{featuredScene.title}</strong>
+                        <p>{featuredScene.body}</p>
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          onClick={() => setView(featuredScene.targetView)}
+                        >
+                          {locale === "en"
+                            ? "Open scene page"
+                            : locale === "es"
+                              ? "Abrir página de escena"
+                              : "打开场景页"}
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="card hero-card pitch-card-shell">
+                    <PitchDemo
+                      heartRate={demoHeartRate}
+                      highlights={judgeHighlights}
+                      interventionVisible={demoInterventionVisible}
+                      isSimulating={isSimulatingStress}
+                      locale={locale}
+                      onOpenSupport={() => {
+                        startBreathing();
+                        setView("support");
+                      }}
+                      onOpenStory={() => setView("story")}
+                      onReset={resetStressSimulation}
+                      onSimulate={startStressSimulation}
+                      progress={simulationProgress}
+                      riskScore={demoRiskScore}
+                      sleepHours={demoSleepHours}
+                      stage={demoStage}
+                    />
+                  </section>
+
+                  <CommercialPathSection
+                    locale={locale}
+                    path={commercialPath}
+                    onOpenBeta={() => {
+                      setPreviewMode("demo");
+                      setView("dashboard");
+                    }}
+                    onOpenPersonal={() => setView("support")}
+                    onOpenTeam={() => setView("care")}
+                  />
+
+                  <section className="card overview-drilldown-card">
+                    <div className="split-header">
+                      <div>
+                        <p className="section-title">{locale === "en" ? "Next step" : locale === "es" ? "Siguiente paso" : "下一步"}</p>
+                        <p className="section-subtitle">
+                          {locale === "en"
+                            ? "After the demo, these pages answer the deeper product questions."
+                            : locale === "es"
+                              ? "Después de la demo, estas páginas responden a las preguntas más profundas del producto."
+                              : "演示看完后，再进入这些页面回答更深一层的问题。"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="compact-nav-grid">
+                      {storyDrilldowns.map((item) => (
+                        <article key={item.title} className="drilldown-card">
+                          <strong>{item.title}</strong>
+                          <p>{item.body}</p>
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={() => setView(item.view)}
+                          >
+                            {locale === "en" ? "Open" : locale === "es" ? "Abrir" : "打开"}
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                </>
+              )}
             </div>
           )}
 
@@ -2799,6 +3229,14 @@ function App() {
                 </div>
               </section>
 
+              <RecoveryBriefCard
+                brief={recoveryBrief}
+                error={recoveryBriefError}
+                loading={recoveryBriefLoading}
+                locale={locale}
+                onRefresh={() => void refreshRecoveryBrief(true)}
+              />
+
               <section className="card care-preview-card">
                 <div className="split-header">
                   <div>
@@ -2937,6 +3375,15 @@ function App() {
                   </div>
                 </section>
               </div>
+
+              <RecoveryBriefCard
+                brief={recoveryBrief}
+                compact
+                error={recoveryBriefError}
+                loading={recoveryBriefLoading}
+                locale={locale}
+                onRefresh={() => void refreshRecoveryBrief(true)}
+              />
 
               <section className="card">
                 <div className="split-header">
@@ -3529,6 +3976,70 @@ function PitchDemo({
   );
 }
 
+function CommercialPathSection({
+  locale,
+  onOpenBeta,
+  onOpenPersonal,
+  onOpenTeam,
+  path,
+}: {
+  locale: Locale;
+  onOpenBeta: () => void;
+  onOpenPersonal: () => void;
+  onOpenTeam: () => void;
+  path: ReturnType<typeof getCommercialPath>;
+}) {
+  return (
+    <section className="card commercial-path-card">
+      <div className="commercial-path-header">
+        <div className="commercial-path-copy">
+          <p className="section-title">{locale === "en" ? "Commercial path" : locale === "es" ? "Ruta comercial" : "商业路径"}</p>
+          <h2>{path.title}</h2>
+          <p className="section-subtitle">{path.body}</p>
+        </div>
+        <p className="commercial-path-note">{path.note}</p>
+      </div>
+
+      <div className="commercial-path-grid">
+        {path.plans.map((plan) => {
+          const action =
+            plan.id === "beta"
+              ? onOpenBeta
+              : plan.id === "personal"
+                ? onOpenPersonal
+                : onOpenTeam;
+
+          return (
+            <article
+              key={plan.id}
+              className={plan.id === "beta" ? "commercial-plan-card is-active" : "commercial-plan-card"}
+            >
+              <div className="commercial-plan-topline">
+                <span>{plan.badge}</span>
+                <small>{plan.state}</small>
+              </div>
+              <strong>{plan.title}</strong>
+              <p>{plan.summary}</p>
+              <ul className="bullet-list commercial-plan-points">
+                {plan.points.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className={plan.id === "beta" ? "button-primary" : "button-secondary"}
+                onClick={action}
+              >
+                {plan.cta}
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function MetricCard({
   locale,
   label,
@@ -3563,6 +4074,126 @@ function MetricCard({
       <strong>{value}</strong>
       {detail ? <small>{detail}</small> : null}
     </article>
+  );
+}
+
+function RecoveryBriefCard({
+  brief,
+  compact = false,
+  error,
+  loading,
+  locale,
+  onRefresh,
+}: {
+  brief: RecoveryBriefResponse | null;
+  compact?: boolean;
+  error: string;
+  loading: boolean;
+  locale: Locale;
+  onRefresh: () => void;
+}) {
+  const title =
+    locale === "en"
+      ? "AI Recovery Brief"
+      : locale === "es"
+        ? "Brief IA de recuperación"
+        : "AI 恢复简报";
+
+  const subtitle =
+    locale === "en"
+      ? "This stays server-side. If no AI key is configured, the card falls back to a local brief."
+      : locale === "es"
+        ? "Esto se genera en el servidor. Si no hay AI key configurada, la tarjeta vuelve a un brief local."
+        : "这张卡片只走服务端；如果没配 AI key，会自动回退到本地简报。";
+
+  return (
+    <section className={compact ? "card ai-brief-card ai-brief-card-compact" : "card ai-brief-card"}>
+      <div className="split-header">
+        <div>
+          <p className="section-title">{title}</p>
+          <p className="section-subtitle">
+            {locale === "en"
+              ? "The brief turns the current state into one calm summary plus the next 2 to 3 actions."
+              : locale === "es"
+                ? "El brief convierte el estado actual en un resumen sereno y las siguientes 2 o 3 acciones."
+                : "把当前状态压缩成一段冷静总结和接下来的 2 到 3 个动作。"}
+          </p>
+        </div>
+        <div className="card-actions">
+          {brief ? (
+            <span className={brief.mode === "ai" ? "chip chip-solid" : "chip"}>
+              {brief.mode === "ai"
+                ? locale === "en"
+                  ? "AI"
+                  : locale === "es"
+                    ? "IA"
+                    : "AI"
+                : locale === "en"
+                  ? "Fallback"
+                  : locale === "es"
+                    ? "Plantilla"
+                    : "本地回退"}
+            </span>
+          ) : null}
+          <button type="button" className="button-secondary" onClick={onRefresh}>
+            {loading
+              ? locale === "en"
+                ? "Refreshing..."
+                : locale === "es"
+                  ? "Actualizando..."
+                  : "刷新中..."
+              : locale === "en"
+                ? "Refresh Brief"
+                : locale === "es"
+                  ? "Actualizar brief"
+                  : "刷新简报"}
+          </button>
+        </div>
+      </div>
+
+      {error ? <p className="support-result">{error}</p> : null}
+
+      {brief ? (
+        <div className="ai-brief-layout">
+          <div className="ai-brief-copy">
+            <h3>{brief.headline}</h3>
+            <p>{brief.summary}</p>
+          </div>
+          <div className="ai-brief-panel">
+            <strong>{locale === "en" ? "Next moves" : locale === "es" ? "Siguientes pasos" : "下一步动作"}</strong>
+            <ul className="bullet-list">
+              {brief.actions.map((action) => (
+                <li key={action}>{action}</li>
+              ))}
+            </ul>
+            <p className="ai-brief-note">{brief.escalationNote}</p>
+            <small>
+              {brief.mode === "ai" && brief.model
+                ? locale === "en"
+                  ? `Model: ${brief.model}`
+                  : locale === "es"
+                    ? `Modelo: ${brief.model}`
+                    : `模型：${brief.model}`
+                : locale === "en"
+                  ? "Using local fallback logic"
+                  : locale === "es"
+                    ? "Usando lógica local de respaldo"
+                    : "当前使用本地回退逻辑"}
+            </small>
+          </div>
+        </div>
+      ) : (
+        <p className="support-result">
+          {loading
+            ? locale === "en"
+              ? "Generating a calm brief for the current state..."
+              : locale === "es"
+                ? "Generando un brief sereno para el estado actual..."
+                : "正在为当前状态生成一份冷静的恢复简报..."
+            : subtitle}
+        </p>
+      )}
+    </section>
   );
 }
 
