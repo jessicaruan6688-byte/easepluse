@@ -41,6 +41,20 @@ import {
   requestRecoveryBrief,
   type RecoveryBriefResponse,
 } from "./lib/ai-client";
+import {
+  BandBridge,
+  isNativeBandBridgeSupported,
+  type NativeBandStatus,
+} from "./lib/band-bridge";
+import {
+  HealthBridge,
+  buildSnapshotFromHealthSummary,
+  isNativeHealthBridgeSupported,
+  type NativeHealthAuthorizationStatus,
+  type NativeHealthAvailability,
+  type NativeHealthPermissions,
+  type NativeHealthSummary,
+} from "./lib/health-bridge";
 
 type ViewKey =
   | "overview"
@@ -83,6 +97,156 @@ type LifestyleScene = {
   creditHref: string;
   targetView: ViewKey;
 };
+
+function formatSignalTime(timestamp: number, locale: Locale) {
+  return new Intl.DateTimeFormat(getLocaleCode(locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function getNativeBluetoothMessage(
+  locale: Locale,
+  state: BluetoothState,
+  deviceName?: string,
+  errorMessage?: string,
+) {
+  if (state === "connected") {
+    return locale === "en"
+      ? `Connected to ${deviceName || "your band"}. Waiting for the first heart-rate reading.`
+      : locale === "es"
+        ? `Conectado a ${deviceName || "tu pulsera"}. Esperando la primera lectura de frecuencia cardíaca.`
+        : `已连接 ${deviceName || "你的手环"}，等待第一条心率读数。`;
+  }
+
+  if (state === "connecting") {
+    return locale === "en"
+      ? "Scanning for a heart-rate broadcast from your band on iPhone Bluetooth."
+      : locale === "es"
+        ? "Buscando en el Bluetooth del iPhone una emisión de frecuencia cardíaca de tu pulsera."
+        : "正在通过 iPhone 蓝牙搜索手环发出的心率广播。";
+  }
+
+  if (state === "unsupported") {
+    return locale === "en"
+      ? "Native Bluetooth is unavailable on this device."
+      : locale === "es"
+        ? "Bluetooth nativo no está disponible en este dispositivo."
+        : "这台设备暂时无法使用原生蓝牙。";
+  }
+
+  if (state === "error") {
+    return errorMessage ||
+      (locale === "en"
+        ? "Bluetooth connection failed."
+        : locale === "es"
+          ? "La conexión Bluetooth falló."
+          : "蓝牙连接失败。");
+  }
+
+  return locale === "en"
+    ? "Turn on HR Data Broadcasts on the band, then connect through iPhone Bluetooth."
+    : locale === "es"
+      ? "Activa HR Data Broadcasts en la pulsera y luego conecta desde el Bluetooth del iPhone."
+      : "先在手环里打开 HR Data Broadcasts，再通过 iPhone 蓝牙连接。";
+}
+
+function getDefaultHealthMessage(locale: Locale) {
+  if (locale === "en") {
+    return "Sleep, resting heart rate, and steps can be pulled from Apple Health after you authorize EasePulse.";
+  }
+
+  if (locale === "es") {
+    return "Sueño, frecuencia en reposo y pasos se pueden leer desde Apple Health después de autorizar a EasePulse.";
+  }
+
+  return "授权后，EasePulse 可以从 Apple 健康读取睡眠、静息心率和步数等历史数据。";
+}
+
+function getHealthAuthorizationLabel(
+  locale: Locale,
+  status: NativeHealthAuthorizationStatus,
+) {
+  if (locale === "en") {
+    return {
+      notDetermined: "Not authorized",
+      sharingDenied: "Access denied",
+      sharingAuthorized: "Authorized",
+      partiallyAuthorized: "Partially authorized",
+      unavailable: "Unavailable",
+    }[status];
+  }
+
+  if (locale === "es") {
+    return {
+      notDetermined: "Sin autorización",
+      sharingDenied: "Acceso denegado",
+      sharingAuthorized: "Autorizado",
+      partiallyAuthorized: "Autorización parcial",
+      unavailable: "No disponible",
+    }[status];
+  }
+
+  return {
+    notDetermined: "未授权",
+    sharingDenied: "已拒绝",
+    sharingAuthorized: "已授权",
+    partiallyAuthorized: "部分授权",
+    unavailable: "不可用",
+  }[status];
+}
+
+function getHealthMetricLabel(
+  locale: Locale,
+  key: keyof NativeHealthPermissions,
+) {
+  if (locale === "en") {
+    return {
+      sleepAnalysis: "Sleep",
+      restingHeartRate: "Resting HR",
+      heartRate: "Heart rate",
+      stepCount: "Steps",
+      activeEnergyBurned: "Active energy",
+      appleExerciseTime: "Exercise",
+    }[key];
+  }
+
+  if (locale === "es") {
+    return {
+      sleepAnalysis: "Sueño",
+      restingHeartRate: "Pulso en reposo",
+      heartRate: "Frecuencia cardíaca",
+      stepCount: "Pasos",
+      activeEnergyBurned: "Energía activa",
+      appleExerciseTime: "Ejercicio",
+    }[key];
+  }
+
+  return {
+    sleepAnalysis: "睡眠",
+    restingHeartRate: "静息心率",
+    heartRate: "心率",
+    stepCount: "步数",
+    activeEnergyBurned: "活动热量",
+    appleExerciseTime: "运动时间",
+  }[key];
+}
+
+function formatOptionalMetric(
+  value: number | undefined,
+  locale: Locale,
+  digits = 0,
+) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return locale === "en" ? "No data" : locale === "es" ? "Sin datos" : "暂无数据";
+  }
+
+  return value.toLocaleString(getLocaleCode(locale), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
 
 type CommercialPlan = {
   id: "beta" | "personal" | "team";
@@ -805,7 +969,7 @@ function getLifestyleScenes(locale: Locale): LifestyleScene[] {
     {
       id: "recovery-breathing",
       title: "恢复场景要更柔和",
-      body: "这张图比首页堆很多字更适合解释呼吸练习和慢下来的感觉。",
+      body: "这张图更适合承接呼吸练习、慢下来和重新找回节奏的感觉。",
       image: "/media/lifestyle/recovery-breathing.jpg",
       credit: "Pexels",
       creditHref: "https://www.pexels.com/photo/young-woman-sitting-near-sofa-3759657/",
@@ -830,27 +994,27 @@ function getStoryDrilldowns(locale: Locale): Array<{
 }> {
   if (locale === "en") {
     return [
-      { title: "Open Story Deck", body: "Screenshots, references, and links live there.", view: "story" },
-      { title: "See Device Bridge", body: "Open wearable details only when needed.", view: "connect" },
-      { title: "Open Today's State", body: "Jump straight into the recovery dashboard.", view: "dashboard" },
-      { title: "Open Care Circle", body: "Open the human-support layer as a next step.", view: "care" },
+      { title: "Story & context", body: "See the product narrative, references, and supporting material.", view: "story" },
+      { title: "Device connection", body: "Explore how wearable signals flow into the product.", view: "connect" },
+      { title: "Today's recovery", body: "Open the daily recovery dashboard and current state.", view: "dashboard" },
+      { title: "Care circle", body: "See how trusted people join the support flow.", view: "care" },
     ];
   }
 
   if (locale === "es") {
     return [
-      { title: "Abrir Story Deck", body: "Ahí viven capturas, referencias y enlaces.", view: "story" },
-      { title: "Ver puente de dispositivos", body: "Abre los detalles wearable solo cuando haga falta.", view: "connect" },
-      { title: "Abrir estado de hoy", body: "Entra directo al dashboard de recuperación.", view: "dashboard" },
-      { title: "Abrir círculo de cuidado", body: "Abre la capa humana como siguiente paso.", view: "care" },
+      { title: "Historia y contexto", body: "Ver narrativa del producto, referencias y material de apoyo.", view: "story" },
+      { title: "Conexión de dispositivos", body: "Explora cómo las señales wearable entran en el producto.", view: "connect" },
+      { title: "Recuperación de hoy", body: "Abre el dashboard diario y el estado actual.", view: "dashboard" },
+      { title: "Círculo de cuidado", body: "Mira cómo la gente de confianza entra en el apoyo.", view: "care" },
     ];
   }
 
   return [
-    { title: "打开 Story 二级页", body: "截图、竞品和真实链接都在里面。", view: "story" },
-    { title: "查看设备桥接", body: "设备桥接细节按需打开。", view: "connect" },
-    { title: "打开今日状态", body: "直接进入恢复仪表盘。", view: "dashboard" },
-    { title: "进入关怀圈", body: "把社交支持层放到下一步。", view: "care" },
+    { title: "产品故事", body: "查看产品叙事、参考资料和支撑内容。", view: "story" },
+    { title: "设备连接", body: "查看可穿戴设备信号如何进入产品。", view: "connect" },
+    { title: "今日恢复", body: "直接进入每日恢复仪表盘和当前状态。", view: "dashboard" },
+    { title: "关怀圈", body: "查看可信任的人如何进入支持链路。", view: "care" },
   ];
 }
 
@@ -863,15 +1027,15 @@ function getCommercialPath(locale: Locale): {
   if (locale === "en") {
     return {
       title: "Beta free first, then a clean path into personal and team plans.",
-      body: "This belongs right after the homepage hero: visible enough to explain the business model, but not loud enough to interrupt the demo.",
-      note: "First payment should appear where ongoing recovery value becomes obvious, not as a hard paywall on the first screen.",
+      body: "Start with the public beta, then grow into personal recovery support and coordinated care plans.",
+      note: "Charging should begin when long-term value becomes clear, not before the user trusts the product.",
       plans: [
         {
           id: "beta",
           badge: "Now",
           state: "Free",
           title: "Beta Free",
-          summary: "For judges, early testers, and the first public product loop.",
+          summary: "For early users exploring the core product flow.",
           points: ["Live web demo and multilingual preview", "Basic wearable bridge path", "Feedback and waitlist access"],
           cta: "Open beta preview",
         },
@@ -900,15 +1064,15 @@ function getCommercialPath(locale: Locale): {
   if (locale === "es") {
     return {
       title: "Beta gratis primero, luego una ruta clara hacia plan personal y de equipo.",
-      body: "Esta sección va justo después del hero: visible para explicar el negocio, pero sin romper la calma de la home.",
-      note: "El primer cobro debe aparecer donde el valor continuo de recuperación ya se siente indispensable, no como muro en la primera pantalla.",
+      body: "Empieza con la beta pública y luego crece hacia apoyo personal de recuperación y cuidado coordinado.",
+      note: "El cobro debe empezar cuando el valor continuo ya es evidente, no antes de que exista confianza en el producto.",
       plans: [
         {
           id: "beta",
           badge: "Ahora",
           state: "Gratis",
           title: "Beta Gratis",
-          summary: "Para jurado, primeros testers y el primer ciclo público del producto.",
+          summary: "Para primeras personas usuarias que exploran el flujo central del producto.",
           points: ["Demo web en vivo y vista multilingüe", "Ruta base de integración wearable", "Acceso a feedback y lista de espera"],
           cta: "Abrir beta",
         },
@@ -936,15 +1100,15 @@ function getCommercialPath(locale: Locale): {
 
   return {
     title: "先用 Beta 免费跑通，再升级到个人版和团队版。",
-    body: "这块放在首页首屏之后最合适，能说明商业路径，但不会打断演示节奏。",
-    note: "真正开始收费，应该放在用户已经感受到持续恢复价值之后，而不是第一屏就硬拦。",
+    body: "先从公开 Beta 进入，再自然升级到个人恢复支持和团队协同关怀。",
+    note: "收费应该出现在用户已经感受到长期价值之后，而不是还没建立信任就先拦住。",
     plans: [
       {
         id: "beta",
         badge: "当前",
         state: "免费",
         title: "Beta 免费",
-        summary: "给评审、早期用户和第一轮公开体验使用。",
+        summary: "给最早一批体验核心产品链路的用户使用。",
         points: ["真实网页演示和多语言预览", "基础设备桥接链路", "反馈回收和候补入口"],
         cta: "进入 Beta 演示",
       },
@@ -1083,10 +1247,10 @@ function getLiveMode(
         label: locale === "en" ? "Steady Mode" : locale === "es" ? "Modo estable" : "平稳模式",
         detail:
           locale === "en"
-            ? "The page keeps the softest teal tone, which is better for reviewing today's recovery state."
+            ? "The interface stays in its softest teal state, suited to a steadier recovery read."
             : locale === "es"
-              ? "La página mantiene el tono turquesa más suave, ideal para revisar el estado de recuperación de hoy."
-              : "页面保持最柔和的蓝绿色，适合观察今天的恢复状态。",
+              ? "La interfaz mantiene su tono turquesa más suave, adecuado para una lectura más estable de la recuperación."
+              : "界面会保持最柔和的蓝绿色，适合更平稳地查看恢复状态。",
       };
     }
 
@@ -1096,10 +1260,10 @@ function getLiveMode(
         label: locale === "en" ? "Focus Mode" : locale === "es" ? "Modo foco" : "激活模式",
         detail:
           locale === "en"
-            ? "Heart rate is already rising, so the page highlights the current state and a fast recovery action."
+            ? "Heart rate is rising, so the interface brings the current state and a quick recovery action forward."
             : locale === "es"
-              ? "La frecuencia cardíaca ya está subiendo, así que la página destaca el estado actual y una acción rápida de recuperación."
-              : "心率已开始上来，页面会强调当前状态和快速恢复动作。",
+              ? "La frecuencia cardíaca está subiendo, así que la interfaz acerca el estado actual y una acción rápida de recuperación."
+              : "心率开始上扬时，界面会更突出当前状态和快速恢复动作。",
       };
     }
 
@@ -1108,10 +1272,10 @@ function getLiveMode(
       label: locale === "en" ? "Release Mode" : locale === "es" ? "Modo descarga" : "释放模式",
       detail:
         locale === "en"
-          ? "Load is clearly elevated, so the page prioritizes unloading and recovery support."
-          : locale === "es"
-            ? "La carga ya está claramente elevada, así que la página prioriza bajar carga y apoyo de recuperación."
-            : "负荷已明显升高，页面会优先强调减负和恢复支持。",
+          ? "Load is clearly elevated, so the interface prioritizes unloading and recovery support."
+        : locale === "es"
+            ? "La carga ya está claramente elevada, así que la interfaz prioriza bajar carga y apoyo de recuperación."
+            : "当负荷明显升高时，界面会优先引导减负和恢复支持。",
     };
   }
 
@@ -1214,6 +1378,16 @@ function App() {
   const [recoveryBrief, setRecoveryBrief] = useState<RecoveryBriefResponse | null>(null);
   const [recoveryBriefLoading, setRecoveryBriefLoading] = useState(false);
   const [recoveryBriefError, setRecoveryBriefError] = useState("");
+  const [healthAvailability, setHealthAvailability] =
+    useState<NativeHealthAvailability | null>(null);
+  const [healthSummary, setHealthSummary] = useState<NativeHealthSummary | null>(null);
+  const [healthMessage, setHealthMessage] = useState(() =>
+    getDefaultHealthMessage(readStoredValue(localeStorageKey, "zh")),
+  );
+  const [healthSyncing, setHealthSyncing] = useState(false);
+  const [healthLastSyncAt, setHealthLastSyncAt] = useState("");
+  const nativeBandBridgeAvailable = isNativeBandBridgeSupported();
+  const nativeHealthBridgeAvailable = isNativeHealthBridgeSupported();
   const deviceRef = useRef<any>(null);
   const characteristicRef = useRef<any>(null);
   const simulationStartedAtRef = useRef<number | null>(null);
@@ -1306,6 +1480,15 @@ function App() {
   }, [uploads]);
 
   useEffect(() => {
+    if (healthSummary) {
+      setHealthLastSyncAt(formatSignalTime(healthSummary.fetchedAt, locale));
+      return;
+    }
+
+    setHealthMessage(getDefaultHealthMessage(locale));
+  }, [healthSummary, locale]);
+
+  useEffect(() => {
     if (!isBreathing || timer === 0) {
       return;
     }
@@ -1354,6 +1537,95 @@ function App() {
   }, [isSimulatingStress]);
 
   useEffect(() => {
+    if (nativeBandBridgeAvailable) {
+      let disposed = false;
+      const listeners: Array<{ remove: () => Promise<void> }> = [];
+
+      const applyNativeStatus = (status: NativeBandStatus) => {
+        if (disposed) {
+          return;
+        }
+
+        setBluetoothState(status.state);
+        setConnectedDeviceName(status.deviceName ?? "");
+
+        if (typeof status.heartRate === "number") {
+          setLiveHeartRate(status.heartRate);
+        } else if (status.state !== "connected") {
+          setLiveHeartRate(null);
+        }
+
+        if (typeof status.lastSignalAt === "number") {
+          setLastSignalAt(formatSignalTime(status.lastSignalAt, locale));
+        } else if (status.state !== "connected") {
+          setLastSignalAt("");
+        }
+
+        setBluetoothMessage(
+          getNativeBluetoothMessage(locale, status.state, status.deviceName, status.errorMessage),
+        );
+      };
+
+      const bootNativeBridge = async () => {
+        try {
+          listeners.push(
+            await BandBridge.addListener("statusChange", (status) => {
+              applyNativeStatus(status);
+            }),
+          );
+          listeners.push(
+            await BandBridge.addListener("heartRate", ({ heartRate, measuredAt }) => {
+              if (disposed) {
+                return;
+              }
+
+              setLiveHeartRate(heartRate);
+              setLastSignalAt(formatSignalTime(measuredAt, locale));
+              setBluetoothMessage(
+                locale === "en"
+                  ? "Live heart-rate data is flowing from the band through iPhone Bluetooth."
+                  : locale === "es"
+                    ? "La frecuencia cardíaca en vivo ya está entrando desde la pulsera por Bluetooth del iPhone."
+                    : "手环实时心率已经通过 iPhone 蓝牙接入。",
+              );
+            }),
+          );
+
+          const availability = await BandBridge.isAvailable();
+          if (!availability.available) {
+            applyNativeStatus({ state: "unsupported" });
+            return;
+          }
+
+          applyNativeStatus(await BandBridge.getStatus());
+        } catch (error) {
+          if (disposed) {
+            return;
+          }
+
+          setBluetoothState("error");
+          setBluetoothMessage(
+            error instanceof Error
+              ? error.message
+              : locale === "en"
+                ? "The native Bluetooth bridge could not be started."
+                : locale === "es"
+                  ? "No se pudo iniciar el puente Bluetooth nativo."
+                  : "无法启动 iPhone 原生蓝牙桥接。",
+          );
+        }
+      };
+
+      void bootNativeBridge();
+
+      return () => {
+        disposed = true;
+        listeners.forEach((listener) => {
+          void listener.remove();
+        });
+      };
+    }
+
     const bluetoothApi =
       typeof navigator !== "undefined"
         ? (navigator as Navigator & { bluetooth?: any }).bluetooth
@@ -1393,7 +1665,68 @@ function App() {
               : "浏览器支持蓝牙，但还需要在点击按钮后再请求设备权限。",
         );
       });
-  }, [locale]);
+  }, [locale, nativeBandBridgeAvailable]);
+
+  useEffect(() => {
+    if (!nativeHealthBridgeAvailable) {
+      return;
+    }
+
+    let disposed = false;
+
+    const bootHealthBridge = async () => {
+      try {
+        const availability = await HealthBridge.isAvailable();
+        if (disposed) {
+          return;
+        }
+
+        setHealthAvailability(availability);
+
+        if (!availability.available) {
+          setHealthMessage(
+            locale === "en"
+              ? "Apple Health is unavailable on this device."
+              : locale === "es"
+                ? "Apple Health no está disponible en este dispositivo."
+                : "这台设备暂时不能使用 Apple 健康。",
+          );
+          return;
+        }
+
+        setHealthMessage(
+          availability.status === "sharingAuthorized" ||
+            availability.status === "partiallyAuthorized"
+            ? locale === "en"
+              ? "Apple Health is ready. You can sync today's summary into EasePulse."
+              : locale === "es"
+                ? "Apple Health ya está listo. Puedes sincronizar el resumen de hoy en EasePulse."
+                : "Apple 健康已准备好，可以把今天的摘要同步进 EasePulse。"
+            : getDefaultHealthMessage(locale),
+        );
+      } catch (error) {
+        if (disposed) {
+          return;
+        }
+
+        setHealthMessage(
+          error instanceof Error
+            ? error.message
+            : locale === "en"
+              ? "The Apple Health bridge could not be started."
+              : locale === "es"
+                ? "No se pudo iniciar el puente con Apple Health."
+                : "无法启动 Apple 健康桥接。",
+        );
+      }
+    };
+
+    void bootHealthBridge();
+
+    return () => {
+      disposed = true;
+    };
+  }, [locale, nativeHealthBridgeAvailable]);
 
   useEffect(() => {
     return () => {
@@ -1449,6 +1782,53 @@ function App() {
     : activeScenario.history;
   const screenshotCount = Object.values(uploads).filter(Boolean).length;
   const liveMode = getLiveMode(bluetoothState, liveHeartRate, isCustomMode, locale);
+  const healthStatusLabel = getHealthAuthorizationLabel(
+    locale,
+    healthAvailability?.status ?? "notDetermined",
+  );
+  const healthPermissionEntries = (
+    [
+      "sleepAnalysis",
+      "restingHeartRate",
+      "heartRate",
+      "stepCount",
+      "activeEnergyBurned",
+      "appleExerciseTime",
+    ] as Array<keyof NativeHealthPermissions>
+  ).flatMap((key) => {
+    const status = healthAvailability?.permissions?.[key];
+    return status
+      ? [
+          {
+            key,
+            label: getHealthMetricLabel(locale, key),
+            status,
+          },
+        ]
+      : [];
+  });
+  const healthCoverageNote = healthSummary
+    ? locale === "en"
+      ? `Sleep samples ${healthSummary.coverage.sleepSampleCount} · heart-rate samples ${healthSummary.coverage.heartRateSampleCount} · baseline ${healthSummary.coverage.baselineDays} days`
+      : locale === "es"
+        ? `Muestras de sueño ${healthSummary.coverage.sleepSampleCount} · muestras cardíacas ${healthSummary.coverage.heartRateSampleCount} · línea base ${healthSummary.coverage.baselineDays} días`
+        : `睡眠样本 ${healthSummary.coverage.sleepSampleCount} 条 · 心率样本 ${healthSummary.coverage.heartRateSampleCount} 条 · 基线 ${healthSummary.coverage.baselineDays} 天`
+    : locale === "en"
+      ? "Run one Apple Health sync on iPhone to see HealthKit sample coverage."
+      : locale === "es"
+        ? "Ejecuta una sincronización de Apple Health en iPhone para ver la cobertura de muestras de HealthKit."
+        : "请先在 iPhone 上执行一次 Apple 健康同步，随后这里会显示 HealthKit 样本覆盖情况。";
+  const healthErrors = healthSummary?.errors ?? [];
+  const syncedSleepHours = formatOptionalMetric(healthSummary?.metrics.sleepHours, locale, 1);
+  const syncedRestingHeartRate = formatOptionalMetric(
+    healthSummary?.metrics.restingHeartRate,
+    locale,
+  );
+  const syncedStepCount = formatOptionalMetric(healthSummary?.metrics.stepCount, locale);
+  const syncedExerciseMinutes = formatOptionalMetric(
+    healthSummary?.metrics.exerciseMinutes,
+    locale,
+  );
   const demoHeartRate = Math.round(72 + simulationProgress * 46);
   const demoRiskScore = Math.round(28 + simulationProgress * 60);
   const demoStage = getSimulationStage(simulationProgress, demoRiskScore, locale);
@@ -1614,14 +1994,124 @@ function App() {
     );
     setBluetoothMessage(
       locale === "en"
-        ? "Live heart-rate data is flowing. The page mode will change with the incoming range."
+        ? "Live heart-rate data is flowing. The interface will adapt as the signal changes."
         : locale === "es"
-          ? "Ya está entrando frecuencia cardíaca en tiempo real. El modo de la página cambiará según el rango recibido."
-          : "正在接收实时心率，页面模式会随心率区间自动变化。",
+          ? "Ya está entrando frecuencia cardíaca en tiempo real. La interfaz se adaptará a medida que cambie la señal."
+          : "实时心率已经接入，界面会随着信号变化自动调整。",
     );
   }
 
+  async function syncAppleHealth() {
+    if (!nativeHealthBridgeAvailable) {
+      setHealthMessage(
+        locale === "en"
+          ? "Apple Health sync is only available in the iPhone app."
+          : locale === "es"
+            ? "La sincronización con Apple Health solo está disponible dentro de la app de iPhone."
+            : "Apple 健康同步只在 iPhone App 里可用。",
+      );
+      return;
+    }
+
+    try {
+      setHealthSyncing(true);
+      setHealthMessage(
+        locale === "en"
+          ? "Requesting Apple Health permission and reading today's summary."
+          : locale === "es"
+            ? "Solicitando permiso de Apple Health y leyendo el resumen de hoy."
+            : "正在请求 Apple 健康权限，并读取今天的摘要。",
+      );
+
+      const permission = await HealthBridge.requestPermissions();
+      setHealthAvailability(permission);
+
+      if (
+        permission.status !== "sharingAuthorized" &&
+        permission.status !== "partiallyAuthorized"
+      ) {
+        throw new Error(
+          locale === "en"
+            ? "Apple Health permission is still not granted. Open iPhone Settings > Health > Data Access & Devices > EasePulse."
+            : locale === "es"
+              ? "Apple Health sigue sin autorización. Abre Ajustes del iPhone > Salud > Acceso a datos y dispositivos > EasePulse."
+              : "Apple 健康权限仍未授予。请到 iPhone 设置 > 健康 > 数据访问与设备 > EasePulse 开启权限。",
+        );
+      }
+
+      const summary = await HealthBridge.getDailySummary();
+      const nextSnapshot = buildSnapshotFromHealthSummary(summary, locale);
+
+      setHealthSummary(summary);
+      setHealthLastSyncAt(formatSignalTime(summary.fetchedAt, locale));
+      setCustomSnapshot(nextSnapshot);
+      setIsCustomMode(true);
+      setView("dashboard");
+      setHealthMessage(
+        locale === "en"
+          ? "Apple Health data has been written into today's EasePulse state."
+          : locale === "es"
+            ? "Los datos de Apple Health ya se escribieron en el estado de hoy dentro de EasePulse."
+            : "Apple 健康数据已写入 EasePulse 今日状态。",
+      );
+      setSupportResult(
+        locale === "en"
+          ? "Today's state now comes from Apple Health plus your live wearable connection."
+          : locale === "es"
+            ? "El estado de hoy ahora来自 Apple Health y tu conexión wearable en vivo."
+            : "今天的状态现在来自 Apple 健康历史数据和你的实时手环连接。",
+      );
+    } catch (error) {
+      setHealthMessage(
+        error instanceof Error
+          ? error.message
+          : locale === "en"
+            ? "Apple Health sync failed."
+            : locale === "es"
+              ? "La sincronización con Apple Health falló."
+              : "Apple 健康同步失败。",
+      );
+    } finally {
+      setHealthSyncing(false);
+    }
+  }
+
   async function connectBand() {
+    if (nativeBandBridgeAvailable) {
+      try {
+        setBluetoothState("connecting");
+        setBluetoothMessage(getNativeBluetoothMessage(locale, "connecting"));
+        const status = await BandBridge.connect();
+
+        setBluetoothState(status.state);
+        setConnectedDeviceName(status.deviceName ?? "");
+        if (typeof status.heartRate === "number") {
+          setLiveHeartRate(status.heartRate);
+        }
+        if (typeof status.lastSignalAt === "number") {
+          setLastSignalAt(formatSignalTime(status.lastSignalAt, locale));
+        }
+        setBluetoothMessage(
+          getNativeBluetoothMessage(locale, status.state, status.deviceName, status.errorMessage),
+        );
+        setView("connect");
+      } catch (error) {
+        setBluetoothState("error");
+        setConnectedDeviceName("");
+        setLiveHeartRate(null);
+        setBluetoothMessage(
+          error instanceof Error
+            ? error.message
+            : locale === "en"
+              ? "Failed to connect to the band over iPhone Bluetooth."
+              : locale === "es"
+                ? "No se pudo conectar la pulsera por Bluetooth del iPhone."
+                : "无法通过 iPhone 蓝牙连接手环。",
+        );
+      }
+      return;
+    }
+
     const bluetoothApi =
       typeof navigator !== "undefined"
         ? (navigator as Navigator & { bluetooth?: any }).bluetooth
@@ -1721,6 +2211,35 @@ function App() {
   }
 
   async function disconnectBand() {
+    if (nativeBandBridgeAvailable) {
+      try {
+        const status = await BandBridge.disconnect();
+        setBluetoothState(status.state);
+        setConnectedDeviceName(status.deviceName ?? "");
+        setLiveHeartRate(null);
+        setLastSignalAt("");
+        setBluetoothMessage(
+          locale === "en"
+            ? "Disconnected from the band. You can reconnect whenever you need live heart rate."
+            : locale === "es"
+              ? "Pulsera desconectada. Puedes reconectar cuando quieras volver a ver la frecuencia en vivo."
+              : "已断开手环连接。需要实时心率时可以再重新连接。",
+        );
+      } catch (error) {
+        setBluetoothState("error");
+        setBluetoothMessage(
+          error instanceof Error
+            ? error.message
+            : locale === "en"
+              ? "Failed to disconnect the band cleanly."
+              : locale === "es"
+                ? "No se pudo desconectar la pulsera correctamente."
+                : "手环断开时出现问题。",
+        );
+      }
+      return;
+    }
+
     const characteristic = characteristicRef.current;
     const device = deviceRef.current;
 
@@ -1933,15 +2452,15 @@ function App() {
         : `${sessionUser.email} 已接入。现在直接看产品链路和你的数据。`
     : previewMode === "demo"
       ? locale === "en"
-        ? "Demo preview keeps the pressure rise, AI intervention, and support handoff visible in one chain."
+        ? "Follow the full flow from rising stress to intervention, recovery, and human support."
         : locale === "es"
-          ? "La vista demo mantiene en una sola cadena el aumento de presión, la intervención IA y el traspaso de apoyo."
-          : "演示预览会把压力上升、AI 干预和支持转交放在一条链路里。"
+          ? "Sigue el recorrido completo desde el aumento del estrés hasta la intervención, la recuperación y el apoyo humano."
+          : "这里会完整展示从压力上升到干预、恢复与人际支持的整条链路。"
       : locale === "en"
-        ? "Visitor preview stays softer: calmer imagery, lighter entry points, and one clear path into the live demo."
+        ? "A calmer introduction to recovery, wearable signals, and trusted support."
         : locale === "es"
-          ? "La vista visitante es más suave: imágenes tranquilas, entradas ligeras y una ruta clara hacia la demo."
-          : "访客预览会更柔和一些：先看静谧图片，再决定是否进入演示。";
+          ? "Una introducción más serena a la recuperación, las señales wearable y el apoyo de confianza."
+          : "这是一个更平静的入口，用来理解恢复、设备信号和可信支持。";
   const authStatusLabel = sessionUser
     ? locale === "en"
       ? "Workspace connected"
@@ -2181,10 +2700,10 @@ function App() {
                   </p>
                   <p className="section-subtitle">
                     {locale === "en"
-                      ? "Scenario switching only appears in demo preview."
+                      ? "Choose a stress and recovery scenario to explore the flow."
                       : locale === "es"
-                        ? "El cambio de escenarios solo aparece en la vista demo."
-                        : "只有演示预览会显示场景切换。"}
+                        ? "Elige un escenario de estrés y recuperación para explorar el flujo."
+                        : "选择一个压力与恢复场景，查看整条链路如何变化。"}
                   </p>
                 </div>
                 <div className="chip">
@@ -2237,10 +2756,10 @@ function App() {
                 <span>{locale === "en" ? "Visitor preview" : locale === "es" ? "Vista visitante" : "访客预览"}</span>
                 <p>
                   {locale === "en"
-                    ? "Start with quieter visuals and product atmosphere first, then enter the demo when you want to see the stress flow."
+                    ? "A calmer view of EasePulse before you step into the full stress and recovery demo."
                     : locale === "es"
-                      ? "Empieza con una atmósfera más tranquila y entra en la demo cuando quieras ver el flujo de estrés."
-                      : "先看更安静的画面和产品气质，需要时再进入完整演示。"}
+                      ? "Una vista más serena de EasePulse antes de entrar en la demo completa de estrés y recuperación."
+                      : "先看 EasePulse 更平静的一面，再进入完整的压力与恢复演示。"}
                 </p>
               </div>
               <button
@@ -2267,17 +2786,17 @@ function App() {
                       <p className="section-title">{locale === "en" ? "Visitor preview" : locale === "es" ? "Vista visitante" : "访客预览"}</p>
                       <h2>
                         {locale === "en"
-                          ? "A softer first look before the stress demo begins."
+                          ? "A calm recovery companion for high-pressure days."
                           : locale === "es"
-                            ? "Una primera mirada más suave antes de que empiece la demo."
-                            : "先看一眼更静、更轻的页面，再决定是否进入演示。"}
+                            ? "Un acompañante de recuperación sereno para días de alta presión."
+                            : "给高压生活留一个更平静的恢复入口。"}
                       </h2>
                       <p className="section-subtitle">
                         {locale === "en"
-                          ? "This version keeps the page quiet: serene imagery, real links, and one obvious path into the live product flow."
+                          ? "EasePulse helps people notice overload earlier, slow the spiral, and move into breathing, recovery, and trusted support."
                           : locale === "es"
-                            ? "Esta versión se mantiene tranquila: imágenes serenas, enlaces reales y una ruta clara hacia la demo."
-                            : "这一层先保持安静：看图、看真实入口、看产品气质，需要时再进入完整演示链路。"}
+                            ? "EasePulse ayuda a detectar la sobrecarga antes, bajar la intensidad y pasar a respiración, recuperación y apoyo de confianza."
+                            : "EasePulse 让人更早发现透支，先慢下来，再进入呼吸练习、恢复支持和可信任的人际协助。"}
                       </p>
                       <div className="hero-actions">
                         <button
@@ -2291,7 +2810,7 @@ function App() {
                           {locale === "en" ? "Enter demo preview" : locale === "es" ? "Entrar en vista demo" : "进入演示预览"}
                         </button>
                         <button type="button" className="button-secondary" onClick={() => setView("story")}>
-                          {locale === "en" ? "Open story deck" : locale === "es" ? "Abrir story deck" : "打开 Story 二级页"}
+                          {locale === "en" ? "Open story" : locale === "es" ? "Abrir historia" : "查看产品故事"}
                         </button>
                         <a className="button-secondary visitor-link-button" href="https://easepluse.zeabur.app/" rel="noreferrer" target="_blank">
                           {locale === "en" ? "Open live site" : locale === "es" ? "Abrir sitio real" : "打开线上站"}
@@ -2299,19 +2818,19 @@ function App() {
                       </div>
                       <div className="visitor-step-grid">
                         <article className="visitor-step-card">
-                          <span>{locale === "en" ? "Quiet entry" : locale === "es" ? "Entrada suave" : "静一点进入"}</span>
-                          <strong>{locale === "en" ? "See the tone first" : locale === "es" ? "Mira primero el tono" : "先看页面气质"}</strong>
-                          <p>{locale === "en" ? "The visitor view should feel restorative before it feels technical." : locale === "es" ? "La vista visitante debe sentirse reparadora antes que técnica." : "访客页先要让人放松，再让人理解功能。"}</p>
+                          <span>{locale === "en" ? "Recovery" : locale === "es" ? "Recuperación" : "恢复"}</span>
+                          <strong>{locale === "en" ? "Turn overload into a calmer read of today" : locale === "es" ? "Convierte la sobrecarga en una lectura más serena del día" : "把透支状态翻译成更平静的今日感知"}</strong>
+                          <p>{locale === "en" ? "Sleep debt, rising strain, and emotional load are presented as something you can respond to, not just endure." : locale === "es" ? "La deuda de sueño, la tensión y la carga emocional se presentan como algo a lo que puedes responder, no solo soportar." : "睡眠透支、持续紧绷和情绪负荷会被翻译成可回应的状态，而不是只能硬扛的数据。"}</p>
                         </article>
                         <article className="visitor-step-card">
-                          <span>{locale === "en" ? "Real path" : locale === "es" ? "Ruta real" : "真实入口"}</span>
-                          <strong>{locale === "en" ? "Everything clickable stays real" : locale === "es" ? "Todo lo clickable es real" : "所有入口都要真能点开"}</strong>
-                          <p>{locale === "en" ? "Live site, story deck, and later the product demo are separate moves." : locale === "es" ? "Sitio real, story deck y demo del producto son pasos distintos." : "线上站、Story 页和产品演示要分成不同路径。"}</p>
+                          <span>{locale === "en" ? "Guidance" : locale === "es" ? "Guía" : "引导"}</span>
+                          <strong>{locale === "en" ? "Move from one-minute reset to next-step support" : locale === "es" ? "Pasa del reset de un minuto al siguiente apoyo" : "从一分钟重置进入下一步恢复支持"}</strong>
+                          <p>{locale === "en" ? "Breathing, recovery briefs, and intervention prompts make the product feel useful before it ever feels clinical." : locale === "es" ? "Respiración, briefs de recuperación e intervenciones hacen que el producto se sienta útil antes que clínico." : "呼吸练习、恢复简报和干预提示，会先让产品显得有用，再谈技术和机制。"}</p>
                         </article>
                         <article className="visitor-step-card">
-                          <span>{locale === "en" ? "Switch later" : locale === "es" ? "Cambia después" : "按需切换"}</span>
-                          <strong>{locale === "en" ? "Demo starts only when you want it" : locale === "es" ? "La demo solo empieza cuando tú quieres" : "需要时再切到演示"}</strong>
-                          <p>{locale === "en" ? "The pressure playback no longer has to dominate the first screen." : locale === "es" ? "La reproducción de presión ya no domina la primera pantalla." : "压力演示不再强行占据访客的第一屏。"}</p>
+                          <span>{locale === "en" ? "Connection" : locale === "es" ? "Conexión" : "连接"}</span>
+                          <strong>{locale === "en" ? "Bring wearables and trusted people into one loop" : locale === "es" ? "Une wearables y personas de confianza en un solo circuito" : "把设备与可信任的人放进同一条支持链路"}</strong>
+                          <p>{locale === "en" ? "Huawei, Xiaomi, Apple Watch and similar devices provide the signal; the care circle provides the human follow-through." : locale === "es" ? "Huawei, Xiaomi, Apple Watch y otros dispositivos aportan la señal; el círculo de cuidado aporta la respuesta humana." : "华为、小米、Apple Watch 等设备提供信号，关怀圈提供真正的人际接应。"}</p>
                         </article>
                       </div>
                     </div>
@@ -2352,13 +2871,13 @@ function App() {
                   <section className="card overview-drilldown-card">
                     <div className="split-header">
                       <div>
-                        <p className="section-title">{locale === "en" ? "Next step" : locale === "es" ? "Siguiente paso" : "下一步"}</p>
+                        <p className="section-title">{locale === "en" ? "Explore more" : locale === "es" ? "Explorar más" : "继续了解"}</p>
                         <p className="section-subtitle">
                           {locale === "en"
-                            ? "Visitor preview stays lighter. Use the cards below to decide where to go next."
+                            ? "Choose the part of EasePulse you want to explore next."
                             : locale === "es"
-                              ? "La vista visitante se mantiene más ligera. Usa estas tarjetas para decidir a dónde ir."
-                              : "访客预览保持更轻，下面这些入口再决定你下一步去哪里。"}
+                              ? "Elige la parte de EasePulse que quieres explorar a continuación."
+                              : "选择你想继续了解的 EasePulse 功能。"}
                         </p>
                       </div>
                     </div>
@@ -2390,20 +2909,20 @@ function App() {
                     <div className="launch-hero-copy">
                       <div className="split-header">
                         <div>
-                          <p className="section-title">{locale === "en" ? "Demo preview" : locale === "es" ? "Vista demo" : "演示预览"}</p>
+                          <p className="section-title">{locale === "en" ? "Live demo" : locale === "es" ? "Demo en vivo" : "实时演示"}</p>
                           <h2>
                             {locale === "en"
-                              ? "Show stress, recovery, and support in one visible chain."
+                              ? "See stress, recovery, and support in one continuous flow."
                               : locale === "es"
-                                ? "Muestra estrés, recuperación y apoyo en una sola cadena visible."
-                                : "把压力、恢复和支持转交放到一条清楚的链路里。"}
+                                ? "Mira estrés, recuperación y apoyo en un solo flujo continuo."
+                                : "在一条连续链路里看到压力、恢复和支持如何衔接。"}
                           </h2>
                           <p className="section-subtitle">
                             {locale === "en"
-                              ? "This layer is for judges and product review. It keeps the risk rise, intervention, and next-step routing on screen."
+                              ? "The experience moves from rising load into intervention, breathing, and trusted follow-through."
                               : locale === "es"
-                                ? "Esta capa es para jurado y revisión del producto. Mantiene en pantalla el ascenso del riesgo, la intervención y el desvío posterior."
-                                : "这一层专门给演示和评审看，会把风险上升、干预动作和后续分流留在屏幕上。"}
+                                ? "La experiencia pasa del aumento de carga a la intervención, la respiración y el acompañamiento de confianza."
+                                : "体验会从负荷上升过渡到干预、呼吸练习和可信任的后续接应。"}
                           </p>
                         </div>
                         <div className="chip chip-solid">
@@ -2433,29 +2952,29 @@ function App() {
                           {locale === "en" ? "Open today's state" : locale === "es" ? "Abrir estado de hoy" : "打开今日状态"}
                         </button>
                         <button type="button" className="button-secondary" onClick={() => setView("story")}>
-                          {locale === "en" ? "Open story deck" : locale === "es" ? "Abrir story deck" : "打开 Story 二级页"}
+                          {locale === "en" ? "Open story" : locale === "es" ? "Abrir historia" : "查看产品故事"}
                         </button>
                         <button type="button" className="button-secondary" onClick={() => setPreviewMode("guest")}>
-                          {locale === "en" ? "Back to visitor view" : locale === "es" ? "Volver a vista visitante" : "回到访客预览"}
+                          {locale === "en" ? "Back to calm view" : locale === "es" ? "Volver a la vista serena" : "回到静谧首页"}
                         </button>
                       </div>
 
                       <div className="launch-metric-grid">
                         <article className="launch-metric-card">
-                          <span>{locale === "en" ? "Evidence" : locale === "es" ? "Evidencia" : "真实证据"}</span>
+                          <span>{locale === "en" ? "Signals" : locale === "es" ? "Señales" : "真实信号"}</span>
                           <strong>
                             {locale === "en"
-                              ? `${screenshotEvidence.length} proof shots`
+                              ? `${screenshotEvidence.length} source snapshots`
                               : locale === "es"
-                                ? `${screenshotEvidence.length} pruebas reales`
-                                : `${screenshotEvidence.length} 张截图`}
+                                ? `${screenshotEvidence.length} capturas de origen`
+                                : `${screenshotEvidence.length} 组来源截图`}
                           </strong>
                           <small>
                             {locale === "en"
-                              ? "Keep screenshots and references ready for judge questions."
+                              ? "Wearable and health captures keep the recovery story grounded in real signals."
                               : locale === "es"
-                                ? "Mantén listas las capturas y referencias para las preguntas del jurado."
-                                : "把截图证据和参考入口都留给评委追问。"}
+                                ? "Las capturas de salud y wearable mantienen la historia de recuperación conectada a señales reales."
+                                : "设备与健康截图让恢复链路始终建立在真实信号上。"}
                           </small>
                         </article>
                         <article className="launch-metric-card">
@@ -2474,10 +2993,10 @@ function App() {
                           <strong>{locale === "en" ? "Huawei, Xiaomi, Apple Watch+" : locale === "es" ? "Huawei, Xiaomi, Apple Watch+" : "华为、小米、Apple Watch+"}</strong>
                           <small>
                             {locale === "en"
-                              ? "Device details stay one layer deeper so the demo can stay focused."
+                              ? "Wearable support starts broad, while deeper device details stay available when needed."
                               : locale === "es"
-                                ? "Los detalles del dispositivo quedan una capa más abajo para mantener el foco de la demo."
-                                : "设备细节放在下一层，演示首页只保留主线。"}
+                                ? "La compatibilidad wearable empieza amplia y los detalles quedan disponibles cuando hacen falta."
+                                : "设备支持先覆盖更广，具体桥接细节按需再展开。"}
                           </small>
                         </article>
                       </div>
@@ -2541,13 +3060,13 @@ function App() {
                   <section className="card overview-drilldown-card">
                     <div className="split-header">
                       <div>
-                        <p className="section-title">{locale === "en" ? "Next step" : locale === "es" ? "Siguiente paso" : "下一步"}</p>
+                        <p className="section-title">{locale === "en" ? "Go deeper" : locale === "es" ? "Profundizar" : "进一步查看"}</p>
                         <p className="section-subtitle">
                           {locale === "en"
-                            ? "After the demo, these pages answer the deeper product questions."
+                            ? "Open the area you want to understand in more detail."
                             : locale === "es"
-                              ? "Después de la demo, estas páginas responden a las preguntas más profundas del producto."
-                              : "演示看完后，再进入这些页面回答更深一层的问题。"}
+                              ? "Abre el área que quieras entender con más detalle."
+                              : "打开你想进一步了解的部分。"}
                         </p>
                       </div>
                     </div>
@@ -2577,20 +3096,20 @@ function App() {
               <section className="card">
                 <div className="split-header">
                   <div>
-                    <p className="section-title">{locale === "en" ? "Story deck" : locale === "es" ? "Story deck" : "Story 二级页"}</p>
+                    <p className="section-title">{locale === "en" ? "Story" : locale === "es" ? "Historia" : "产品故事"}</p>
                     <h2>
                       {locale === "en"
-                        ? "The long explanation stays here, not on the homepage."
+                        ? "The fuller product story, context, and references live here."
                         : locale === "es"
-                          ? "La explicación larga se queda aquí y ya no presiona la home."
-                          : "长说明放在这里，不再全部堆在首页。"}
+                          ? "Aquí vive la historia completa del producto, su contexto y sus referencias."
+                          : "这里放完整的产品故事、上下文和参考资料。"}
                     </h2>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "This page holds the screenshot proof, support handoff logic, product layers, references, and deployment links."
+                        ? "Explore source signals, support flows, references, and the live product path in one place."
                         : locale === "es"
-                          ? "Aquí viven las capturas de prueba, la lógica de relevo, las capas de producto, las referencias y los enlaces reales."
-                          : "这里集中放截图证据、支持转交逻辑、产品分层、竞品参考和部署链接。"}
+                          ? "Explora señales de origen, flujos de apoyo, referencias y la ruta viva del producto en un solo lugar."
+                          : "这里集中展示来源信号、支持链路、参考资料和真实产品入口。"}
                     </p>
                   </div>
                   <button type="button" className="button-secondary" onClick={() => setView("overview")}>
@@ -2632,10 +3151,10 @@ function App() {
                     <p className="section-title">{locale === "en" ? "Real-life scenes" : locale === "es" ? "Escenas reales" : "真实生活场景"}</p>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "These lifestyle photos now live in the Story page instead of stretching the homepage."
+                        ? "Moments of overload, recovery, and late-night reset help anchor the product in everyday life."
                         : locale === "es"
-                          ? "Estas fotos reales ahora viven en Story y ya no alargan la home."
-                          : "这些真实生活图现在放到 Story 页，不再继续把首页拉长。"}
+                          ? "Escenas de sobrecarga, recuperación y cierre nocturno anclan el producto en la vida cotidiana."
+                          : "把透支、恢复和深夜收工这些真实时刻放回日常生活场景里。"}
                     </p>
                   </div>
                 </div>
@@ -2678,10 +3197,10 @@ function App() {
                     <p className="section-title">{locale === "en" ? "Real entry points" : locale === "es" ? "Entradas reales" : "真实入口"}</p>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "These links really open. They are no longer just shapes that look clickable."
+                        ? "Open the live product, repository, device references, and supporting links directly from here."
                         : locale === "es"
-                          ? "Estos enlaces se pueden abrir de verdad. Ya no son solo botones falsos."
-                          : "这些都是真正能点开的链接，不再只是视觉上的“像按钮”。"}
+                          ? "Abre desde aquí el producto en vivo, el repositorio, las referencias de dispositivos y los enlaces de apoyo."
+                          : "从这里直接打开线上产品、仓库、设备参考和支撑链接。"}
                     </p>
                   </div>
                 </div>
@@ -2710,10 +3229,10 @@ function App() {
                     <p className="section-title">{locale === "en" ? "Reference products" : locale === "es" ? "Referencias de producto" : "竞品参考"}</p>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "This version does not copy one competitor. It borrows recovery logic, trusted sharing, and gentle interaction from different references."
+                        ? "These references inform recovery logic, trusted sharing, and a softer interaction style."
                         : locale === "es"
-                          ? "Esta versión no copia a un solo competidor. Toma referencias separadas de lógica de recuperación, compartición confiable e interacción amable."
-                          : "这一版不是抄一个竞品，而是分别借鉴恢复逻辑、可信共享和温和交互。"}
+                          ? "Estas referencias orientan la lógica de recuperación, el compartir confiable y una interacción más amable."
+                          : "这些参考主要帮助我们打磨恢复逻辑、可信共享和更温和的交互方式。"}
                     </p>
                   </div>
                 </div>
@@ -2788,10 +3307,10 @@ function App() {
                     <p className="section-title">{locale === "en" ? "Data bridge path" : locale === "es" ? "Ruta del puente de datos" : "数据桥接路径"}</p>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "This separates what already works, what should land after the demo, and what we should not pretend is already complete."
+                        ? "See the shortest path from wearable signal to recovery interface."
                         : locale === "es"
-                          ? "Aquí se separa lo que ya funciona, lo que va después del demo y lo que no debemos fingir que ya está resuelto."
-                          : "现在把真实能做、赛后再补、以及不该假装已经完成的部分拆开写清楚。"}
+                          ? "Aquí se ve la ruta más corta desde la señal wearable hasta la interfaz de recuperación."
+                          : "这里展示从可穿戴设备信号进入恢复界面的最短路径。"}
                     </p>
                   </div>
                   <div className="chip chip-solid">{getBluetoothLabel(bluetoothState, locale)}</div>
@@ -2802,28 +3321,46 @@ function App() {
                     <span>01</span>
                     <h3>
                       {locale === "en"
-                        ? "Companion health apps"
+                        ? nativeBandBridgeAvailable
+                          ? "iPhone native Bluetooth"
+                          : "Companion health apps"
                         : locale === "es"
-                          ? "Apps de salud compañeras"
-                          : "Companion 健康应用"}
+                          ? nativeBandBridgeAvailable
+                            ? "Bluetooth nativo en iPhone"
+                            : "Apps de salud compañeras"
+                          : nativeBandBridgeAvailable
+                            ? "iPhone 原生蓝牙"
+                            : "Companion 健康应用"}
                     </h3>
                     <p>
                       {locale === "en"
-                        ? "Real wearable data can start from Huawei Health, Xiaomi Fitness, Apple Health, Garmin Connect, Fitbit, or another companion app."
+                        ? nativeBandBridgeAvailable
+                          ? "On iPhone, the fastest real-time path is native Bluetooth plus a standard heart-rate broadcast from the band."
+                          : "Real wearable data can start from Huawei Health, Xiaomi Fitness, Apple Health, Garmin Connect, Fitbit, or another companion app."
                         : locale === "es"
-                          ? "Los datos reales pueden empezar en Huawei Health, Xiaomi Fitness, Apple Health, Garmin Connect, Fitbit u otra app compañera."
-                          : "真实手环数据可以从 Huawei Health、Xiaomi Fitness、Apple Health、Garmin Connect、Fitbit 或其他 companion app 开始。"}
+                          ? nativeBandBridgeAvailable
+                            ? "En iPhone, la ruta más rápida en tiempo real es Bluetooth nativo más una emisión cardíaca estándar de la pulsera."
+                            : "Los datos reales pueden empezar en Huawei Health, Xiaomi Fitness, Apple Health, Garmin Connect, Fitbit u otra app compañera."
+                          : nativeBandBridgeAvailable
+                            ? "在 iPhone 上，最快的实时链路是原生蓝牙加手环标准心率广播。"
+                            : "真实手环数据可以从 Huawei Health、Xiaomi Fitness、Apple Health、Garmin Connect、Fitbit 或其他 companion app 开始。"}
                     </p>
                   </article>
                   <article className="bridge-card info">
                     <span>02</span>
-                    <h3>{locale === "en" ? "Desktop browser Bluetooth" : locale === "es" ? "Bluetooth en navegador de escritorio" : "桌面浏览器蓝牙"}</h3>
+                    <h3>{locale === "en" ? (nativeBandBridgeAvailable ? "Companion health apps" : "Desktop browser Bluetooth") : locale === "es" ? (nativeBandBridgeAvailable ? "Apps de salud compañeras" : "Bluetooth en navegador de escritorio") : (nativeBandBridgeAvailable ? "Companion 健康应用" : "桌面浏览器蓝牙")}</h3>
                     <p>
                       {locale === "en"
-                        ? "In supported browsers, you can try connecting a standard heart-rate broadcast so the web page responds in real time."
+                        ? nativeBandBridgeAvailable
+                          ? "Huawei Health, Apple Health, and similar apps remain useful for historical data and broader ecosystem sync."
+                          : "In supported browsers, you can try connecting a standard heart-rate broadcast so the web page responds in real time."
                         : locale === "es"
-                          ? "En navegadores compatibles puedes intentar conectar una emisión cardíaca estándar para que la web responda en tiempo real."
-                          : "在支持的浏览器里，可以尝试直接连接标准心率广播，让网页出现实时联动。"}
+                          ? nativeBandBridgeAvailable
+                            ? "Huawei Health, Apple Health y apps similares siguen siendo útiles para datos históricos y sincronización más amplia."
+                            : "En navegadores compatibles puedes intentar conectar una emisión cardíaca estándar para que la web responda en tiempo real."
+                          : nativeBandBridgeAvailable
+                            ? "Huawei Health、Apple Health 等 app 仍然适合做历史数据和更广的生态同步。"
+                            : "在支持的浏览器里，可以尝试直接连接标准心率广播，让网页出现实时联动。"}
                     </p>
                   </article>
                   <article className="bridge-card caution">
@@ -2843,13 +3380,19 @@ function App() {
               <section className="card bluetooth-card">
                 <div className="split-header">
                   <div>
-                    <p className="section-title">{locale === "en" ? "Desktop Bluetooth beta" : locale === "es" ? "Beta de Bluetooth en desktop" : "电脑蓝牙连接 Beta"}</p>
+                    <p className="section-title">{locale === "en" ? (nativeBandBridgeAvailable ? "iPhone band connection" : "Desktop Bluetooth beta") : locale === "es" ? (nativeBandBridgeAvailable ? "Conexión de pulsera en iPhone" : "Beta de Bluetooth en desktop") : (nativeBandBridgeAvailable ? "iPhone 手环连接" : "电脑蓝牙连接 Beta")}</p>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "If your Huawei Band, Xiaomi Band, or another device exposes standard heart-rate broadcast, you can try connecting it here. The page tone and mode will react to the incoming range."
+                        ? nativeBandBridgeAvailable
+                          ? "Turn on HR Data Broadcasts on Band 9, then connect here. EasePulse will react to the incoming live heart rate."
+                          : "If your Huawei Band, Xiaomi Band, or another device exposes standard heart-rate broadcast, you can try connecting it here. The page tone and mode will react to the incoming range."
                         : locale === "es"
-                          ? "Si tu Huawei Band, Xiaomi Band u otro dispositivo expone la emisión cardíaca estándar, puedes intentar conectarlo aquí. El tono y el modo de la página reaccionarán al rango recibido."
-                          : "如果你的华为手环、小米手环或其他设备开启了标准心率广播，这里可以直接尝试连接。连接后，网页色调和模式会随心率区间变化。"}
+                          ? nativeBandBridgeAvailable
+                            ? "Activa HR Data Broadcasts en Band 9 y conecta aquí. EasePulse reaccionará a la frecuencia cardíaca en vivo."
+                            : "Si tu Huawei Band, Xiaomi Band u otro dispositivo expone la emisión cardíaca estándar, puedes intentar conectarlo aquí. El tono y el modo de la página reaccionarán al rango recibido."
+                          : nativeBandBridgeAvailable
+                            ? "先在 Band 9 打开 HR Data Broadcasts，再在这里连接。连上后 EasePulse 会对实时心率作出反应。"
+                            : "如果你的华为手环、小米手环或其他设备开启了标准心率广播，这里可以直接尝试连接。连接后，网页色调和模式会随心率区间变化。"}
                     </p>
                   </div>
                   <div className="chip">
@@ -2901,15 +3444,27 @@ function App() {
                   >
                     {bluetoothState === "connecting"
                       ? locale === "en"
-                        ? "Requesting device..."
+                        ? nativeBandBridgeAvailable
+                          ? "Scanning band..."
+                          : "Requesting device..."
                         : locale === "es"
-                          ? "Solicitando dispositivo..."
-                          : "请求设备中..."
+                          ? nativeBandBridgeAvailable
+                            ? "Buscando pulsera..."
+                            : "Solicitando dispositivo..."
+                          : nativeBandBridgeAvailable
+                            ? "搜索手环中..."
+                            : "请求设备中..."
                       : locale === "en"
-                        ? "Connect heart-rate broadcast"
+                        ? nativeBandBridgeAvailable
+                          ? "Connect Band 9"
+                          : "Connect heart-rate broadcast"
                         : locale === "es"
-                          ? "Conectar emisión cardíaca"
-                          : "连接心率广播"}
+                          ? nativeBandBridgeAvailable
+                            ? "Conectar Band 9"
+                            : "Conectar emisión cardíaca"
+                          : nativeBandBridgeAvailable
+                            ? "连接 Band 9"
+                            : "连接心率广播"}
                   </button>
                   <button
                     type="button"
@@ -2958,13 +3513,184 @@ function App() {
               <section className="card upload-card">
                 <div className="split-header">
                   <div>
+                    <p className="section-title">
+                      {locale === "en"
+                        ? "Apple Health history sync"
+                        : locale === "es"
+                          ? "Sincronización histórica de Apple Health"
+                          : "Apple 健康历史同步"}
+                    </p>
+                    <p className="section-subtitle">
+                      {locale === "en"
+                        ? "Keep live heart rate on Band 9, but move sleep, resting heart rate, and steps into EasePulse through HealthKit."
+                        : locale === "es"
+                          ? "Mantén la frecuencia en vivo desde Band 9, pero lleva sueño, frecuencia en reposo y pasos a EasePulse por HealthKit."
+                          : "实时心率继续走 Band 9，睡眠、静息心率和步数等历史数据通过 HealthKit 进入 EasePulse。"}
+                    </p>
+                  </div>
+                  <div className="chip">{healthStatusLabel}</div>
+                </div>
+
+                <div className="bluetooth-grid">
+                  <article className="live-metric-card">
+                    <span>{locale === "en" ? "Last-night sleep" : locale === "es" ? "Sueño de anoche" : "昨夜睡眠"}</span>
+                    <strong>{syncedSleepHours}</strong>
+                    <small>{locale === "en" ? "hours" : locale === "es" ? "horas" : "小时"}</small>
+                  </article>
+                  <article className="live-metric-card">
+                    <span>{locale === "en" ? "Resting heart rate" : locale === "es" ? "Pulso en reposo" : "静息心率"}</span>
+                    <strong>{syncedRestingHeartRate}</strong>
+                    <small>{locale === "en" ? "bpm" : locale === "es" ? "lpm" : "次/分"}</small>
+                  </article>
+                  <article className="live-metric-card">
+                    <span>{locale === "en" ? "Step count" : locale === "es" ? "Pasos" : "步数"}</span>
+                    <strong>{syncedStepCount}</strong>
+                    <small>{locale === "en" ? "today" : locale === "es" ? "hoy" : "今日"}</small>
+                  </article>
+                  <article className="mode-card mode-card-release">
+                    <span>{locale === "en" ? "Health sync state" : locale === "es" ? "Estado de la sincronización" : "同步状态"}</span>
+                    <strong>
+                      {healthLastSyncAt
+                        ? locale === "en"
+                          ? "Synced"
+                          : locale === "es"
+                            ? "Sincronizado"
+                            : "已同步"
+                        : healthStatusLabel}
+                    </strong>
+                    <p>{healthMessage}</p>
+                    <small>
+                      {healthLastSyncAt
+                        ? locale === "en"
+                          ? `Last sync ${healthLastSyncAt} · exercise ${syncedExerciseMinutes} min`
+                          : locale === "es"
+                            ? `Última sincronización ${healthLastSyncAt} · ejercicio ${syncedExerciseMinutes} min`
+                            : `最后同步 ${healthLastSyncAt} · 运动 ${syncedExerciseMinutes} 分钟`
+                        : locale === "en"
+                          ? "No Apple Health import yet"
+                          : locale === "es"
+                            ? "Todavía no hay importación"
+                            : "尚未导入 Apple 健康数据"}
+                    </small>
+                  </article>
+                </div>
+
+                <div className="hero-actions">
+                  <button
+                    type="button"
+                    className="button-primary"
+                    disabled={healthSyncing || !nativeHealthBridgeAvailable}
+                    onClick={() => void syncAppleHealth()}
+                  >
+                    {healthSyncing
+                      ? locale === "en"
+                        ? "Syncing Apple Health..."
+                        : locale === "es"
+                          ? "Sincronizando Apple Health..."
+                          : "同步 Apple 健康中..."
+                      : locale === "en"
+                        ? "Sync Apple Health"
+                        : locale === "es"
+                          ? "Sincronizar Apple Health"
+                          : "同步 Apple 健康"}
+                  </button>
+                </div>
+
+                {nativeHealthBridgeAvailable ? (
+                  <div className="diagnostic-card">
+                    <div className="split-header">
+                      <div>
+                        <p className="section-title">
+                          {locale === "en"
+                            ? "HealthKit diagnostics"
+                            : locale === "es"
+                              ? "Diagnóstico de HealthKit"
+                              : "HealthKit 诊断"}
+                        </p>
+                        <p className="section-subtitle">{healthCoverageNote}</p>
+                      </div>
+                    </div>
+
+                    <div className="diagnostic-chip-row">
+                      {healthPermissionEntries.map((entry) => (
+                        <span key={entry.key} className="diagnostic-chip">
+                          {entry.label} · {getHealthAuthorizationLabel(locale, entry.status)}
+                        </span>
+                      ))}
+                    </div>
+
+                    {healthErrors.length > 0 ? (
+                      <ul className="diagnostic-list">
+                        {healthErrors.map((error) => (
+                          <li key={error}>{error}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="diagnostic-copy">
+                        {locale === "en"
+                          ? "No HealthKit query errors are currently reported."
+                          : locale === "es"
+                            ? "Ahora mismo no hay errores reportados por las consultas de HealthKit."
+                            : "当前没有收到 HealthKit 查询错误。"}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+
+                <ul className="bullet-list">
+                  <li>
+                    {locale === "en"
+                      ? "Band 9 remains the real-time trigger path. Apple Health becomes the historical summary path."
+                      : locale === "es"
+                        ? "Band 9 sigue siendo la ruta en tiempo real. Apple Health pasa a ser la ruta del resumen histórico."
+                        : "Band 9 继续负责实时触发，Apple 健康负责历史摘要。"}
+                  </li>
+                  <li>
+                    {locale === "en"
+                      ? "If Huawei Health has already written a metric into Apple Health, EasePulse can read it here."
+                      : locale === "es"
+                        ? "Si Huawei Health ya escribió un dato dentro de Apple Health, EasePulse podrá leerlo aquí."
+                        : "只要华为运动健康已经把某项数据写进 Apple 健康，EasePulse 就能在这里读取。"}
+                  </li>
+                  <li>
+                    {locale === "en"
+                      ? "If a metric is still missing, keep today's demo on screenshots and add Huawei Health Kit in the next stage."
+                      : locale === "es"
+                        ? "Si todavía falta algún dato, hoy se mantiene con capturas y en la siguiente fase se añade Huawei Health Kit."
+                        : "如果某项数据还没进 Apple 健康，今天先继续用截图演示，下一阶段再接华为 Health Kit。"}
+                  </li>
+                </ul>
+
+                <div className="doc-link-row">
+                  <a
+                    className="doc-link"
+                    href="https://support.apple.com/en-us/118267"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {locale === "en" ? "Manage Health app data access" : locale === "es" ? "Gestionar acceso a Salud" : "管理健康 App 数据权限"}
+                  </a>
+                  <a
+                    className="doc-link"
+                    href="https://developer.apple.com/documentation/healthkit"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Apple HealthKit
+                  </a>
+                </div>
+              </section>
+
+              <section className="card upload-card">
+                <div className="split-header">
+                  <div>
                     <p className="section-title">{locale === "en" ? "Upload real screenshots" : locale === "es" ? "Subir capturas reales" : "上传真实截图"}</p>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "Sleep, heart-rate, and stress screenshots stay in the flow. They are still the most stable proof of authenticity for demo and judging."
+                        ? "Sleep, heart-rate, and stress captures keep the product grounded in real health signals."
                         : locale === "es"
-                          ? "Las capturas de sueño, frecuencia cardíaca y estrés siguen aquí. Siguen siendo la prueba más estable de autenticidad para demo y jurado."
-                          : "睡眠、心率、压力三类截图依然保留。这是比赛和评审时最稳妥的真实性证明。"}
+                          ? "Las capturas de sueño, frecuencia cardíaca y estrés mantienen el producto conectado a señales reales de salud."
+                          : "睡眠、心率和压力截图会继续保留，让产品始终建立在真实健康信号上。"}
                     </p>
                   </div>
                   <div className="chip">
@@ -3009,10 +3735,10 @@ function App() {
                     <p className="section-title">{locale === "en" ? "Enter today's key signals" : locale === "es" ? "Introduce las señales clave de hoy" : "录入今天的关键指标"}</p>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "For the demo, manual bridging comes first. The product loop stays real without pretending auto-sync is already finished."
+                        ? "Manual entry keeps the product usable today while broader sync and device bridges continue to grow."
                         : locale === "es"
-                          ? "Para el demo, primero va el puente manual. El ciclo del producto sigue siendo real sin fingir que el auto-sync ya está resuelto."
-                          : "比赛版先走人工桥接，产品逻辑保持真实闭环，不用假装“自动同步”已经完成。"}
+                          ? "La entrada manual mantiene el producto útil hoy mientras la sincronización y los puentes de dispositivos siguen creciendo."
+                          : "手动录入先保证产品今天就能用，后续再继续扩展同步和设备桥接。"}
                     </p>
                   </div>
                   <button type="button" className="button-primary" onClick={applyCustomMode}>
@@ -3471,10 +4197,10 @@ function App() {
                     <p className="section-title">{locale === "en" ? "My care contacts" : locale === "es" ? "Mis contactos de cuidado" : "我的关怀联系人"}</p>
                     <p className="section-subtitle">
                       {locale === "en"
-                        ? "For the demo, show the most real actions first: a note, a call, or load relief. System-level sharing and notifications can come later on iOS."
+                        ? "Start with the most human actions first: a note, a call, or practical load relief."
                         : locale === "es"
-                          ? "Para el demo, primero muestra acciones realmente útiles: nota, llamada o alivio de carga. El compartir y las notificaciones del sistema llegarán después en iOS."
-                          : "比赛版先展示最真实的动作：留言、电话、帮忙减负。后续 iOS 才接系统级共享与通知。"}
+                          ? "Empieza por las acciones más humanas: una nota, una llamada o alivio práctico de la carga."
+                          : "先从最有人味的动作开始，比如留言、打电话、帮忙减负。"}
                     </p>
                   </div>
                 </div>
@@ -3613,10 +4339,10 @@ function App() {
                 <h3>{buildInsight(activeHistory, locale)}</h3>
                 <p>
                   {locale === "en"
-                    ? "For the demo, screenshots and manual bridging protect credibility first. System-level sharing, trusted-contact alerts, and anonymous-support distribution can move to a native iOS bridge plus backend permissions next."
+                    ? "Source captures and manual bridging keep the current loop reliable, while deeper system sharing can expand through native iOS and backend permissions."
                     : locale === "es"
-                      ? "En el demo, las capturas y el puente manual protegen primero la credibilidad. El compartir a nivel sistema, las alertas a contactos de confianza y la distribución del apoyo anónimo pueden pasar después a un puente nativo en iOS y una capa de permisos backend."
-                      : "比赛版先用截图和手工桥接保证真实性；如果要做系统级共享、亲友提醒和匿名支持分发，下一阶段再上 iOS 原生桥和服务端权限层。"}
+                      ? "Las capturas de origen y el puente manual mantienen fiable el ciclo actual, mientras el compartir a nivel sistema puede crecer con iOS nativo y permisos backend."
+                      : "来源截图和手工桥接先保证当前链路可靠，后续再通过 iOS 原生能力和服务端权限扩展系统级共享。"}
                 </p>
               </section>
             </div>
@@ -3802,7 +4528,7 @@ function PitchDemo({
         </p>
         <div className="pitch-media-intro pitch-media-intro-compact">
           <div className="pitch-media-heading">
-            <p className="section-title">{locale === "en" ? "Judge demo" : locale === "es" ? "Demo para jurado" : "评委演示"}</p>
+            <p className="section-title">{locale === "en" ? "Stress playback" : locale === "es" ? "Reproducción de estrés" : "压力演示"}</p>
             <h2>
               {locale === "en"
                 ? "One tap should raise stress and trigger the intervention."
@@ -3812,10 +4538,10 @@ function PitchDemo({
             </h2>
             <p className="lede">
               {locale === "en"
-                ? "This card stays short. Proof and references moved to Story."
+                ? "Run the simulated shift from rising load into AI guidance and breathing support."
                 : locale === "es"
-                  ? "Esta tarjeta se mantiene corta. Las pruebas y referencias ya viven en Story."
-                  : "这张卡片只保留演示本身，证据和参考都移到 Story。"}
+                  ? "Ejecuta el cambio simulado desde la carga ascendente hacia la guía IA y el apoyo de respiración."
+                  : "这里专注展示负荷上升后，如何进入 AI 引导和呼吸支持。"}
             </p>
           </div>
         </div>
@@ -4101,10 +4827,10 @@ function RecoveryBriefCard({
 
   const subtitle =
     locale === "en"
-      ? "This stays server-side. If no AI key is configured, the card falls back to a local brief."
+      ? "Generated server-side. If AI is unavailable, EasePulse returns a local recovery brief instead."
       : locale === "es"
-        ? "Esto se genera en el servidor. Si no hay AI key configurada, la tarjeta vuelve a un brief local."
-        : "这张卡片只走服务端；如果没配 AI key，会自动回退到本地简报。";
+        ? "Se genera en el servidor. Si la IA no está disponible, EasePulse devuelve un brief local de recuperación."
+        : "这份简报由服务端生成；如果 AI 暂时不可用，EasePulse 会自动返回本地恢复简报。";
 
   return (
     <section className={compact ? "card ai-brief-card ai-brief-card-compact" : "card ai-brief-card"}>

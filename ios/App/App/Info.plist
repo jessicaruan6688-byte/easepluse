@@ -20,6 +20,14 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>EasePulse uses Bluetooth to connect to your band and read live heart-rate data.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>EasePulse uses Bluetooth to connect to your band and read live heart-rate data.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>EasePulse reads sleep, heart rate, and activity data to estimate your recovery state and suggest the next support action.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>EasePulse may write your recovery summaries back to Health in a later version after you approve it.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

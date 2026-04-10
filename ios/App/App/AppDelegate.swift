@@ -5,6 +5,8 @@ import Capacitor
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+    private var didRegisterBandBridge = false
+    private var didRegisterHealthBridge = false
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
@@ -57,10 +59,32 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return
         }
 
+        registerBandBridgeIfNeeded(on: bridgeController)
+        registerHealthBridgeIfNeeded(on: bridgeController)
         scrollView.isScrollEnabled = true
         scrollView.alwaysBounceVertical = true
         scrollView.bounces = true
         scrollView.panGestureRecognizer.isEnabled = true
+    }
+
+    private func registerBandBridgeIfNeeded(on bridgeController: CAPBridgeViewController) {
+        guard !didRegisterBandBridge, let bridge = bridgeController.bridge else {
+            return
+        }
+
+        NSLog("[EasePulse][BLE] Registering BandBridgePlugin from AppDelegate")
+        bridge.registerPluginInstance(BandBridgePlugin())
+        didRegisterBandBridge = true
+    }
+
+    private func registerHealthBridgeIfNeeded(on bridgeController: CAPBridgeViewController) {
+        guard !didRegisterHealthBridge, let bridge = bridgeController.bridge else {
+            return
+        }
+
+        NSLog("[EasePulse][Health] Registering HealthBridgePlugin from AppDelegate")
+        bridge.registerPluginInstance(HealthBridgePlugin())
+        didRegisterHealthBridge = true
     }
 
     private func keyWindow() -> UIWindow? {
