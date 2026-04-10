@@ -516,6 +516,17 @@ function readStaticFile(req, res, url) {
     return;
   }
 
+  const hasFileExtension = path.extname(pathname) !== "";
+  const isMissingStaticAsset = !existsSync(safePath) && hasFileExtension;
+  if (isMissingStaticAsset) {
+    res.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end("Not Found");
+    return;
+  }
+
   const filePath = existsSync(safePath) ? safePath : path.join(distDir, "index.html");
   const extension = path.extname(filePath);
   const stream = createReadStream(filePath);
@@ -524,8 +535,16 @@ function readStaticFile(req, res, url) {
     sendJson(res, 404, { error: "Not Found" });
   });
 
+  const cacheControl =
+    extension === ".html"
+      ? "no-cache"
+      : pathname.startsWith("/assets/")
+        ? "public, max-age=31536000, immutable"
+        : "public, max-age=3600";
+
   res.writeHead(200, {
     "Content-Type": contentTypes[extension] || "application/octet-stream",
+    "Cache-Control": cacheControl,
   });
   stream.pipe(res);
 }
