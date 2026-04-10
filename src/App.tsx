@@ -2058,7 +2058,7 @@ function App() {
         locale === "en"
           ? "Today's state now comes from Apple Health plus your live wearable connection."
           : locale === "es"
-            ? "El estado de hoy ahora来自 Apple Health y tu conexión wearable en vivo."
+            ? "El estado de hoy ahora viene de Apple Health y de tu conexión wearable en vivo."
             : "今天的状态现在来自 Apple 健康历史数据和你的实时手环连接。",
       );
     } catch (error) {

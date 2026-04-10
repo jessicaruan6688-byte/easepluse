@@ -29,6 +29,20 @@
 - `data/`: 数据文件
 - `tests/`: 测试
 
+## 比赛资料
+
+- `docs/collab-status.md`: 当前协作进度、关键共识、代码改动和下一步
+- `docs/ios-health-integration-log.md`: iOS 真机接入 Band 9 与 Apple Health 的实现记录
+- `docs/competition-runbook.md`: 比赛视频脚本、Xcode 真机部署步骤、录制顺序
+- `docs/roadshow-5min.md`: 严格按 5 分钟路演要求压缩后的讲稿与 Demo 路径
+- `docs/roadshow-spoken.md`: 可直接练习的口语版逐段讲稿
+- `docs/ppt-outline.md`: 5 分钟比赛版 PPT 逐页结构
+- `docs/judge-qa.md`: 评委高频问题与建议回答
+- `docs/video-recording-checklist.md`: 比赛视频录制方案、Web/App/Simulator 三套路径与今晚执行清单
+- `docs/ppt-final-copy.md`: 可直接粘贴到 PPT 生成网站的成稿文案
+- `docs/video-final-copy.md`: 可直接粘贴到视频脚本工具或剪辑软件的成稿文案
+- `docs/tool-recommendations.md`: 当前免费好用的 PPT 与视频工具推荐
+
 ## 本地运行
 
 ```bash
