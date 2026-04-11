@@ -1675,56 +1675,28 @@ function App() {
     let disposed = false;
 
     const bootHealthBridge = async () => {
-      try {
-        const availability = await HealthBridge.isAvailable();
-        if (disposed) {
-          return;
-        }
-
-        setHealthAvailability(availability);
-
-        if (!availability.available) {
-          setHealthMessage(
-            locale === "en"
-              ? "Apple Health is unavailable on this device."
-              : locale === "es"
-                ? "Apple Health no está disponible en este dispositivo."
-                : "这台设备暂时不能使用 Apple 健康。",
-          );
-          return;
-        }
-
-        setHealthMessage(
-          availability.status === "sharingAuthorized" ||
-            availability.status === "partiallyAuthorized"
-            ? locale === "en"
-              ? "Apple Health is ready. You can sync today's summary into EasePulse."
-              : locale === "es"
-                ? "Apple Health ya está listo. Puedes sincronizar el resumen de hoy en EasePulse."
-                : "Apple 健康已准备好，可以把今天的摘要同步进 EasePulse。"
-            : getDefaultHealthMessage(locale),
-        );
-      } catch (error) {
-        if (disposed) {
-          return;
-        }
-
-        setHealthMessage(
-          error instanceof Error
-            ? error.message
-            : locale === "en"
-              ? "The Apple Health bridge could not be started."
-              : locale === "es"
-                ? "No se pudo iniciar el puente con Apple Health."
-                : "无法启动 Apple 健康桥接。",
-        );
-      }
+      await refreshAppleHealthAuthorization();
     };
 
     void bootHealthBridge();
 
+    const handleVisibilityRefresh = () => {
+      if (document.visibilityState === "visible") {
+        void refreshAppleHealthAuthorization({ preserveGrantedMessage: true });
+      }
+    };
+
+    const handleWindowFocus = () => {
+      void refreshAppleHealthAuthorization({ preserveGrantedMessage: true });
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
+    window.addEventListener("focus", handleWindowFocus);
+
     return () => {
       disposed = true;
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+      window.removeEventListener("focus", handleWindowFocus);
     };
   }, [locale, nativeHealthBridgeAvailable]);
 
@@ -2073,6 +2045,71 @@ function App() {
       );
     } finally {
       setHealthSyncing(false);
+    }
+  }
+
+  async function refreshAppleHealthAuthorization(options?: {
+    preserveGrantedMessage?: boolean;
+  }) {
+    if (!nativeHealthBridgeAvailable) {
+      return null;
+    }
+
+    try {
+      const availability = await HealthBridge.getAuthorizationStatus();
+      setHealthAvailability(availability);
+
+      if (!availability.available) {
+        setHealthMessage(
+          locale === "en"
+            ? "Apple Health is unavailable on this device."
+            : locale === "es"
+              ? "Apple Health no está disponible en este dispositivo."
+              : "这台设备暂时不能使用 Apple 健康。",
+        );
+        return availability;
+      }
+
+      if (availability.status === "sharingDenied") {
+        setHealthMessage(
+          locale === "en"
+            ? "Apple Health permission is still denied. Open iPhone Settings > Health > Data Access & Devices > EasePulse."
+            : locale === "es"
+              ? "Apple Health sigue marcado como denegado. Abre Ajustes del iPhone > Salud > Acceso a datos y dispositivos > EasePulse."
+              : "Apple 健康权限仍显示为已拒绝。请到 iPhone 设置 > 健康 > 数据访问与设备 > EasePulse 检查开关。",
+        );
+        return availability;
+      }
+
+      if (
+        availability.status === "sharingAuthorized" ||
+        availability.status === "partiallyAuthorized"
+      ) {
+        if (!options?.preserveGrantedMessage || !healthSummary) {
+          setHealthMessage(
+            locale === "en"
+              ? "Apple Health is ready. You can sync today's summary into EasePulse."
+              : locale === "es"
+                ? "Apple Health ya está listo. Puedes sincronizar el resumen de hoy en EasePulse."
+                : "Apple 健康已准备好，可以把今天的摘要同步进 EasePulse。",
+          );
+        }
+        return availability;
+      }
+
+      setHealthMessage(getDefaultHealthMessage(locale));
+      return availability;
+    } catch (error) {
+      setHealthMessage(
+        error instanceof Error
+          ? error.message
+          : locale === "en"
+            ? "The Apple Health bridge could not be started."
+            : locale === "es"
+              ? "No se pudo iniciar el puente con Apple Health."
+              : "无法启动 Apple 健康桥接。",
+      );
+      return null;
     }
   }
 
